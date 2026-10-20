@@ -1,0 +1,17 @@
+name: bulgarian-news
+services:
+  mongodb:
+    # MongoDB 8 has a startup incompatibility with this host's Docker kernel.
+    image: mongo:7.0
+    ports:
+      - "127.0.0.1:27018:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+volumes:
+  mongo-data:
