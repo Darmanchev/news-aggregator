@@ -94,7 +94,6 @@ h1 em { color: #bc482e; font-weight: 400; }
   .footer { margin-top: 45px; flex-direction: column; gap: 10px; }
 }
 @media (prefers-reduced-motion: no-preference) { a, button { transition: color .15s, background-color .15s; } }
-.collection-freshness { display: flex; flex-wrap: wrap; gap: 0 24px; padding-top: 12px; }
 .article-preview { margin-bottom: 16px; overflow-wrap: anywhere; }
 .article-media { display: flex; align-items: center; justify-content: center; aspect-ratio: 16 / 9; margin-bottom: 16px; overflow: hidden; border-radius: 12px; background: #f2f4ef; }
 .article-photo { display: block; width: 100%; max-width: 320px; height: 100%; object-fit: contain; }

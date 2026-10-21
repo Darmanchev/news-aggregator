@@ -1,9 +1,4 @@
 export interface Option { id: string; name: string }
-export interface SourceStatus {
-  sourceId: string;
-  lastAttemptAt: string | null;
-  lastSuccessAt: string | null;
-}
 export interface Article {
   id: string;
   title: string;
@@ -21,10 +16,6 @@ async function getJson<T>(path: string, signal: AbortSignal): Promise<T> {
   const response = await fetch(path, { signal });
   if (!response.ok) throw new Error(`Request failed (${response.status})`);
   return response.json() as Promise<T>;
-}
-
-export function fetchSourceStatuses(signal: AbortSignal) {
-  return getJson<{ items: SourceStatus[] }>('/api/sources/status', signal);
 }
 
 export function fetchArticles(filters: Filters, signal: AbortSignal, cursor?: string): Promise<ArticlePage> {

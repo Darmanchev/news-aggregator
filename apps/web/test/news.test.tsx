@@ -26,7 +26,8 @@ describe('news feed', () => {
     render(<NewsPage />);
     expect(await screen.findByRole('link', { name: 'Новини от София' })).toHaveAttribute('href', 'https://example.com/1');
     expect(screen.getByText('20 Oct 2026', { exact: false })).toBeInTheDocument();
-    expect(await screen.findByText(/Last checked:/)).toHaveTextContent('Mediapool');
+    expect(screen.queryAllByText(/Last checked:|Last successful check:/)).toHaveLength(0);
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes('/sources/status'))).toBe(false);
   });
 
   it('recovers from a failed request when the reader retries', async () => {

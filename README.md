@@ -36,7 +36,7 @@ MongoDB 7 is used locally because MongoDB 8 refused startup on the current Docke
 - Responsive frontend with loading, empty, failure/retry, and load-more states.
 - Duplicate prevention, request timeout, a 2 MB feed limit, and validation of feed entries and API queries.
 - Separate web and collection processes; JSON collection logs and database readiness endpoint.
-- Per-source collection timestamps and a warning after 15 minutes without a successful check.
+- Per-source collection timestamps available through the status API for operational checks.
 - A new-stories notice checked every minute; loaded pages stay in place until the reader chooses to refresh.
 - Optional email alerts after 15 minutes of continued source failure, with one message per outage.
 
@@ -133,7 +133,7 @@ While a feed is open, the browser checks for newer matching headlines every minu
 
 Collection timestamps are ISO strings, or `null` before the first attempt/success. Each source's attempt is saved before fetching; success is saved only after its feed has been fetched and its valid entries saved, including an empty feed. Failed checks preserve the previous success timestamp. Timestamps identify the start of that collection run, rather than article publication times. Status includes enabled sources only; it does not expose feed URLs or internal errors.
 
-The page checks collection status every minute and shows times in Europe/Sofia. It warns when the last success is at least 15 minutes old, or when a source has been attempted but never succeeded. A source without any attempts shows “Not checked yet.” A stopped collector therefore becomes stale even without a recorded failure. Status requests do not fetch publishers or refresh the article list. Restart both the API and worker after updating; existing articles require no migration, and status appears after the updated collector first runs.
+Collection status remains available at `/api/sources/status` for operational checks. The reader-facing page does not show or poll collection timestamps. Background collection and optional failure emails are unaffected.
 
 ## Checks
 
