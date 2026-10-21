@@ -11,6 +11,9 @@ export const sources: Source[] = [
   { id: 'telegraph', name: 'Вестник Телеграф', feedUrl: 'https://telegraph.bg/rss', imageHosts: ['m.netinfo.bg'] },
   { id: 'offnews', name: 'OFFNews', feedUrl: 'https://feed.offnews.bg/rss/all', imageHosts: ['i2.offnews.bg'] },
   { id: 'dnevnik', name: 'Дневник', feedUrl: 'https://www.dnevnik.bg/rss/', imageHosts: ['img.dnevnik.bg'] },
+  { id: 'actualno', name: 'Actualno.com', feedUrl: 'https://www.actualno.com/rss/novini-new', imageHosts: ['cdn.actualno.eu'] },
+  { id: 'dariknews', name: 'DarikNews.bg · Нет Инфо', feedUrl: 'https://dariknews.bg/rss.php' },
+  { id: 'kaldata', name: 'Kaldata.com · Калдейта Ком', feedUrl: 'https://www.kaldata.com/feed' },
 ];
 
 export function isSourceImageUrl(value: string, sourceId: string): boolean {

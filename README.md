@@ -29,8 +29,8 @@ MongoDB 7 is used locally because MongoDB 8 refused startup on the current Docke
 
 ## What is included
 
-- Real RSS ingestion from Mediapool, Вестник Телеграф, OFFNews, and Дневник.
-- Publisher photo cards for all four sources, with available author credits, short excerpts, lazy loading, and a text fallback.
+- Real RSS ingestion from Mediapool, Вестник Телеграф, OFFNews, Дневник, Actualno.com, DarikNews.bg, and Kaldata.com.
+- Publisher photo cards for sources with enabled image hosts, with available author credits, short excerpts, lazy loading, and a text fallback.
 - Persistent articles ordered by publication time, with stable cursor pagination.
 - Source and topic filters, literal headline search, keyword tags, and original publisher links.
 - Responsive frontend with loading, empty, failure/retry, and load-more states.
@@ -75,6 +75,12 @@ Enabled sources:
 
 - [Дневник RSS](https://www.dnevnik.bg/rss/): [Economedia terms III.3](https://www.economedia.bg/show.php?guid=550170&lang=bg) explicitly permit website aggregation of RSS content, including feed photos accompanied by the title, feed excerpt (up to 500 characters) and author. Checked on 21 October 2026: 30 feed entries. Photos are supplied in RSS HTML on `img.dnevnik.bg`; the collector uses that supplied image before trying original-page metadata.
 
+- [Actualno.com RSS](https://www.actualno.com/rss/novini-new): [terms section III.4](https://www.actualno.com/terms) explicitly allow website RSS aggregation, including the feed photo accompanied by its author, title, and first 200 text characters. Previews use only `cdn.actualno.eu`, require supplied author/excerpt, and cap the excerpt at 200 characters. Article-page photo fallback is disabled for this source. Verified on 21 October 2026: 20 entries.
+
+- [DarikNews.bg RSS](https://dariknews.bg/rss.php): [current terms section 8.3](https://dariknews.bg/terms) allow supplied RSS headlines/paragraphs with publisher attribution and original links. The displayed name includes **Нет Инфо**, as required by the current terms. Verified on 21 October 2026: 16 entries. Photos remain disabled because their reuse permission is unconfirmed.
+
+- [Kaldata.com RSS](https://www.kaldata.com/feed): the publisher [offers RSS to Bulgarian websites](https://www.kaldata.com/rss-новини), and its [terms](https://www.kaldata.com/forums/terms/) permit supplied RSS headlines/paragraphs with attribution and original links. The displayed name includes **Калдейта Ком**. Verified on 21 October 2026: 50 technology-news entries. Photos remain disabled because their reuse permission is unconfirmed.
+
 This application displays headlines, metadata, and approved feed previews, not full articles. It rejects titles longer than 500 characters rather than shortening publisher headlines. Telegraph's feed omits timezone offsets, so those articles use their first collection time for ordering/display rather than a guessed publication time. That date stays stable on subsequent collections. First-run Telegraph items therefore share a fallback timestamp; their order within that timestamp uses the normal ID tie-breaker.
 
 Live checks also found a functioning BNT feed. BNT remains **disabled** because aggregation permission was not confirmed. Public access alone does not establish reuse permission.
@@ -85,7 +91,7 @@ Mediapool returned 10 recent items during its initial verification; Telegraph re
 
 ## Photo previews
 
-The collector first uses the publisher’s RSS image: OFFNews enclosures, Дневник embedded images, and Telegraph’s `image/jpg` enclosures. If RSS supplies no usable preview, it reads the original article’s Open Graph/Twitter image and description metadata. Mediapool currently needs this fallback. Authors and excerpts are retained when supplied; neither is invented when missing. Excerpts are plain text and limited to 500 characters.
+DarikNews and Kaldata currently show headlines without photos. Actualno uses only its RSS photo and a 200-character excerpt with supplied author credit. Telegraph displays a text name panel instead of its stored photo. For other sources, the collector first uses the publisher’s RSS image: OFFNews enclosures, Дневник embedded images, and Telegraph’s `image/jpg` enclosures. If RSS supplies no usable preview, it reads the original article’s Open Graph/Twitter image and description metadata. Mediapool currently needs this fallback. Authors and excerpts are retained when supplied; neither is invented when missing. Excerpts are plain text and limited to 500 characters.
 
 Requests are sequential, limited to 10 seconds and 2 MB per article page, and follow at most three redirects after validating every destination against the publisher host list. Only the configured publisher’s exact HTTPS hosts may be requested. Image URLs must match the source’s configured HTTPS image hosts; the browser policy uses the same list. Full article text is not stored. Image files load directly from the publisher without a referrer; they are not downloaded or cached by the server.
 

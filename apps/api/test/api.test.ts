@@ -70,7 +70,7 @@ describe('news API with MongoDB', () => {
 
   it('returns source and tag options without exposing configuration', async () => {
     const sources = await request(app).get('/api/sources').expect(200);
-    expect(sources.body.items).toEqual([{ id: 'mediapool', name: 'Mediapool' }, { id: 'telegraph', name: 'Вестник Телеграф' }, { id: 'offnews', name: 'OFFNews' }, { id: 'dnevnik', name: 'Дневник' }]);
+    expect(sources.body.items).toEqual([{ id: 'mediapool', name: 'Mediapool' }, { id: 'telegraph', name: 'Вестник Телеграф' }, { id: 'offnews', name: 'OFFNews' }, { id: 'dnevnik', name: 'Дневник' }, { id: 'actualno', name: 'Actualno.com' }, { id: 'dariknews', name: 'DarikNews.bg · Нет Инфо' }, { id: 'kaldata', name: 'Kaldata.com · Калдейта Ком' }]);
     const tags = await request(app).get('/api/tags').expect(200);
     expect(tags.body.items).toContainEqual({ id: 'sofia', name: 'София' });
   });
@@ -82,6 +82,9 @@ describe('news API with MongoDB', () => {
         { sourceId: 'telegraph', lastAttemptAt: null, lastSuccessAt: null },
         { sourceId: 'offnews', lastAttemptAt: null, lastSuccessAt: null },
         { sourceId: 'dnevnik', lastAttemptAt: null, lastSuccessAt: null },
+        { sourceId: 'actualno', lastAttemptAt: null, lastSuccessAt: null },
+        { sourceId: 'dariknews', lastAttemptAt: null, lastSuccessAt: null },
+        { sourceId: 'kaldata', lastAttemptAt: null, lastSuccessAt: null },
       ],
     });
     await SourceStatus.insertMany([
@@ -94,6 +97,9 @@ describe('news API with MongoDB', () => {
         { sourceId: 'telegraph', lastAttemptAt: null, lastSuccessAt: null },
         { sourceId: 'offnews', lastAttemptAt: null, lastSuccessAt: null },
         { sourceId: 'dnevnik', lastAttemptAt: null, lastSuccessAt: null },
+        { sourceId: 'actualno', lastAttemptAt: null, lastSuccessAt: null },
+        { sourceId: 'dariknews', lastAttemptAt: null, lastSuccessAt: null },
+        { sourceId: 'kaldata', lastAttemptAt: null, lastSuccessAt: null },
       ],
     });
   });

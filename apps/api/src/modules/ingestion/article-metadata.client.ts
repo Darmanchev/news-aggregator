@@ -6,6 +6,8 @@ import { normalizePreview } from './article.normalizer.js';
 import { readBoundedResponse } from './rss.client.js';
 
 export async function fetchArticlePreview(article: ArticleInput, item: Item, fetcher: typeof fetch = fetch): Promise<ArticleInput['preview']> {
+  // Actualno permits the photo supplied through RSS, with its feed attribution.
+  if (article.sourceId === 'actualno') return null;
   const source = sources.find(({ id }) => id === article.sourceId);
   let url = new URL(article.url);
   const publisherHost = source && new URL(source.feedUrl).hostname;

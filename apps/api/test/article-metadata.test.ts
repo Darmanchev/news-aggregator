@@ -12,6 +12,11 @@ describe('publisher article photo metadata', () => {
   it('keeps a publisher photo when no author or description is supplied', async () => {
     expect(await fetchArticlePreview(article, {}, async () => new Response('<meta property="og:image" content="/a.jpg">'))).toEqual({ imageUrl: 'https://www.mediapool.bg/a.jpg', author: '', excerpt: '' });
   });
+  it('does not fetch article pages for feed-only or headline-only new sources', async () => {
+    for (const [sourceId, url] of [['actualno', 'https://www.actualno.com/story.html'], ['dariknews', 'https://dariknews.bg/story'], ['kaldata', 'https://www.kaldata.com/story']]) {
+      expect(await fetchArticlePreview({ ...article, sourceId: sourceId!, url: url! }, {}, async () => { throw new Error('Must not fetch'); })).toBeNull();
+    }
+  });
   it('rejects unsafe article URLs before making a request', async () => {
     for (const url of ['http://www.mediapool.bg/a', 'https://127.0.0.1/a', 'https://www.mediapool.bg.evil.test/a', 'https://u:p@www.mediapool.bg/a', 'https://www.mediapool.bg:444/a']) {
       expect(await fetchArticlePreview({ ...article, url }, {}, async () => { throw new Error('Must not fetch'); })).toBeNull();

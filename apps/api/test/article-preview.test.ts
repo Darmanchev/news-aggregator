@@ -28,6 +28,14 @@ describe('licensed RSS previews', () => {
     expect(normalizeArticle({ ...item, enclosure: { url: 'https://m.netinfo.bg/media/story.jpg', type: 'image/jpg' } }, 'telegraph', now)?.preview?.imageUrl).toBe('https://m.netinfo.bg/media/story.jpg');
   });
 
+  it('keeps Actualno feed photos with author and at most 200 excerpt characters', () => {
+    const entry = { ...item, content: 'а'.repeat(300), enclosure: { url: 'https://cdn.actualno.eu/news/photo.jpg', type: 'image/jpg' } };
+    expect(normalizeArticle(entry, 'actualno', now)?.preview).toEqual({ imageUrl: entry.enclosure.url, author: item.creator, excerpt: 'а'.repeat(200) });
+    expect(normalizeArticle({ ...entry, creator: '' }, 'actualno', now)).not.toHaveProperty('preview');
+    expect(normalizeArticle({ ...entry, content: '' }, 'actualno', now)).not.toHaveProperty('preview');
+    for (const sourceId of ['dariknews', 'kaldata']) expect(normalizeArticle(entry, sourceId, now)).not.toHaveProperty('preview');
+  });
+
   it('reads a licensed embedded RSS image and decodes its URL without retaining HTML', () => {
     expect(normalizeArticle({ ...item, enclosure: undefined, contentSnippet: 'Анонс от Дневник.',
       content: '<img src="https://img.dnevnik.bg/shimg/story.jpg?a=1&amp;b=2" /><br />Анонс от Дневник.',

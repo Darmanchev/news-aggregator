@@ -16,7 +16,8 @@ export function normalizePreview(item: Item, sourceId: string): ArticleInput['pr
   const embedded = item.content?.slice(0, 20_000).match(/<img\s+src\s*=\s*(["'])([^"'<>]+)\1\s*\/?>/i)?.[2];
   const imageUrl = item.enclosure?.url ?? (embedded ? decodeHTML(embedded) : undefined);
   const author = plainText(item.creator);
-  const excerpt = plainText(item.contentSnippet ?? item.content).slice(0, 500);
+  const excerpt = plainText(item.contentSnippet ?? item.content).slice(0, sourceId === 'actualno' ? 200 : 500);
+  if (sourceId === 'actualno' && (!author || !excerpt)) return null;
   if (author.length > 200 || typeof imageUrl !== 'string' || imageUrl.length > 2048) return null;
   try {
     const image = new URL(imageUrl);
