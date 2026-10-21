@@ -1,0 +1,70 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import mongoose from 'mongoose';
+import request from 'supertest';
+import { normalizeArticle } from '../src/modules/ingestion/article.normalizer.js';
+import { Article } from '../src/modules/articles/articles.model.js';
+import { saveArticle } from '../src/modules/articles/articles.service.js';
+import { createApp } from '../src/app.js';
+
+const now = new Date('2026-10-21T12:00:00Z');
+const item = {
+  guid: 'preview-fixture', title: 'Изложба в София', link: 'https://offnews.bg/culture/preview-fixture.html',
+  creator: 'Автор на новината', content: '<p>Кратък <b>анонс</b> &amp; новини.</p>',
+  enclosure: { url: 'https://i2.offnews.bg/events/preview.jpg', type: 'image/jpeg' },
+};
+const preview = { imageUrl: 'https://i2.offnews.bg/events/preview.jpg', author: 'Автор на новината', excerpt: 'Кратък анонс & новини.' };
+
+describe('licensed RSS previews', () => {
+  it('keeps the feed photo, plain-text author and bounded excerpt together', () => {
+    expect(normalizeArticle(item, 'offnews', now)).toMatchObject({ preview });
+    expect(normalizeArticle({ ...item, content: 'я'.repeat(600) }, 'offnews', now)?.preview?.excerpt).toHaveLength(500);
+  });
+
+  it('does not take photos from sources without photo permission', () => {
+    expect(normalizeArticle(item, 'telegraph', now)).not.toHaveProperty('preview');
+  });
+
+  it.each([
+    'javascript:alert(1)', 'http://i2.offnews.bg/a.jpg', 'https://other.example/a.jpg',
+    'https://i2.offnews.bg.evil.example/a.jpg', 'https://user:secret@i2.offnews.bg/a.jpg',
+    'https://127.0.0.1/a.jpg', 'https://i2.offnews.bg:444/a.jpg', `https://i2.offnews.bg/${'я'.repeat(400)}`,
+  ])('keeps a readable headline but discards an unsafe photo URL: %s', (url) => {
+    const result = normalizeArticle({ ...item, enclosure: { ...item.enclosure, url } }, 'offnews', now);
+    expect(result?.title).toBe(item.title);
+    expect(result).not.toHaveProperty('preview');
+  });
+
+  it('does not show a photo without its required author, excerpt, or image type', () => {
+    for (const invalid of [
+      { ...item, creator: '' }, { ...item, content: '' },
+      { ...item, creator: 'a'.repeat(201) }, { ...item, enclosure: { ...item.enclosure, type: 'text/html' } },
+    ]) expect(normalizeArticle(invalid, 'offnews', now)).not.toHaveProperty('preview');
+  });
+});
+
+describe('stored and public photo previews', () => {
+  beforeAll(async () => {
+    await mongoose.connect(process.env.TEST_MONGODB_URI ?? 'mongodb://127.0.0.1:27018/bulgarian_news_test');
+    await Article.init();
+  });
+  beforeEach(async () => { await Article.deleteMany({ externalId: 'preview-fixture' }); });
+  afterAll(async () => { await Article.deleteMany({ externalId: 'preview-fixture' }); await mongoose.disconnect(); });
+
+  it('persists and returns approved preview data and clears it when no longer supplied', async () => {
+    await saveArticle(normalizeArticle(item, 'offnews', now)!, now);
+    const app = createApp();
+    const response = await request(app).get('/api/articles?source=offnews').expect(200);
+    expect(response.body.items[0]).toMatchObject({ title: item.title, preview });
+    expect(response.headers['content-security-policy']).toContain('img-src \'self\' data: https://i2.offnews.bg');
+    await saveArticle(normalizeArticle({ ...item, enclosure: undefined }, 'offnews', now)!, now);
+    expect((await request(app).get('/api/articles?source=offnews').expect(200)).body.items[0].preview).toBeNull();
+    expect((await Article.findOne({ externalId: 'preview-fixture' }).lean())?.preview).toBeNull();
+  });
+
+  it('hides stored photo data for a source without permission', async () => {
+    await Article.create({ ...normalizeArticle(item, 'telegraph', now), firstSeenAt: now, preview });
+    const response = await request(createApp()).get('/api/articles?source=telegraph').expect(200);
+    const article = response.body.items.find((row: { title: string }) => row.title === item.title);
+    expect(article.preview).toBeNull();
+  });
+});

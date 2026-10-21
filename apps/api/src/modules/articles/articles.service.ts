@@ -3,9 +3,9 @@ import { sources } from '../sources/sources.config.js';
 import type { ArticleQuery } from './articles.validation.js';
 
 export async function saveArticle(article: ArticleInput, now: Date): Promise<void> {
-  const { sourceId, externalId, publishedAt, ...metadata } = article;
+  const { sourceId, externalId, publishedAt, preview, ...metadata } = article;
   await Article.updateOne({ sourceId, externalId }, {
-    $set: metadata,
+    $set: { ...metadata, preview: preview ?? null },
     // Keep the original sort date stable when an undated article is fetched again.
     $setOnInsert: { sourceId, externalId, publishedAt, firstSeenAt: now },
   }, { upsert: true, runValidators: true });
@@ -15,6 +15,8 @@ export async function listArticles(query: ArticleQuery) {
   const filter = {
     sourceId: query.source ?? { $in: sources.map(({ id }) => id) },
     ...(query.tag ? { tags: query.tag } : {}),
+    // shortcut: literal search scans titles, add a search index when measured latency requires it.
+    ...(query.q ? { title: { $regex: query.q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } } : {}),
     ...(query.cursor ? { $or: [
       { publishedAt: { $lt: query.cursor.date } },
       { publishedAt: query.cursor.date, _id: { $lt: query.cursor.id } },
@@ -29,6 +31,7 @@ export async function listArticles(query: ArticleQuery) {
       publishedAt: article.publishedAt.toISOString(), tags: article.tags,
       sourceId: article.sourceId,
       sourceName: sources.find(({ id }) => id === article.sourceId)?.name ?? article.sourceId,
+      preview: sources.find(({ id }) => id === article.sourceId)?.imageHosts ? article.preview ?? null : null,
     })),
     nextCursor: rows.length > query.limit && last
       ? Buffer.from(JSON.stringify({ date: last.publishedAt.toISOString(), id: last._id.toString() })).toString('base64url')

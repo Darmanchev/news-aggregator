@@ -7,12 +7,16 @@ import { articleRoutes } from './modules/articles/articles.routes.js';
 import { sourceRoutes } from './modules/sources/sources.routes.js';
 import { tagRoutes } from './modules/tagging/tagging.routes.js';
 import { errorHandler } from './middleware/error-handler.js';
+import { sources } from './modules/sources/sources.config.js';
 
 export function createApp() {
   const app = express();
   app.disable('x-powered-by');
   app.set('query parser', 'simple');
-  app.use(helmet({ contentSecurityPolicy: { directives: { upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null } } }));
+  app.use(helmet({ contentSecurityPolicy: { directives: {
+    upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
+    imgSrc: ["'self'", 'data:', ...sources.flatMap(({ imageHosts }) => (imageHosts ?? []).map((host) => `https://${host}`))],
+  } } }));
   app.use('/api', (_request, response, next) => { response.set('Cache-Control', 'no-store'); next(); });
   app.get('/api/health', (_request, response) => {
     const ready = mongoose.connection.readyState === 1;

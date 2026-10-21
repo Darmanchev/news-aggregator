@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { NewsCard } from './NewsCard';
 import { NewsFilters } from './NewsFilters';
+import { SourceFreshness } from './SourceFreshness';
+import { NewStoriesNotice } from './NewStoriesNotice';
 import { fetchArticles, fetchOptions, type Article, type Filters, type Option } from './news.api';
 
 export function NewsPage() {
-  const [filters, setFilters] = useState<Filters>({ source: '', tag: '' });
+  const [filters, setFilters] = useState<Filters>({ source: '', tag: '', q: '' });
   const [options, setOptions] = useState<{ sources: Option[]; tags: Option[] }>({ sources: [], tags: [] });
   const [articles, setArticles] = useState<Article[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -81,6 +83,8 @@ export function NewsPage() {
           <section className="feed" id="stories" aria-labelledby="feed-title" tabIndex={-1}>
             <div className="section-heading"><h2 id="feed-title">The latest</h2><button className="text-button refresh" onClick={refresh} disabled={loading}>Refresh news <span aria-hidden="true">↻</span></button></div>
             <NewsFilters filters={filters} sources={options.sources} tags={options.tags} onChange={setFilters} />
+            <SourceFreshness sources={options.sources} source={filters.source} />
+            {!loading && !error && <NewStoriesNotice filters={filters} firstArticle={articles[0]} onRefresh={refresh} />}
             {optionsError && <div role="alert" className="notice">Could not load the filters. <button onClick={refresh} className="text-button">Retry filters</button></div>}
             <div aria-busy={loading || loadingMore}>
               {loading && <p role="status" className="feed-status">Gathering the headlines…</p>}

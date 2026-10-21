@@ -7,6 +7,7 @@ export interface ArticleInput {
   url: string;
   publishedAt: Date;
   tags: string[];
+  preview?: { imageUrl: string; author: string; excerpt: string } | null;
 }
 
 const articleSchema = new Schema<ArticleInput & { firstSeenAt: Date }>({
@@ -17,6 +18,11 @@ const articleSchema = new Schema<ArticleInput & { firstSeenAt: Date }>({
   publishedAt: { type: Date, required: true },
   firstSeenAt: { type: Date, required: true },
   tags: [{ type: String }],
+  preview: { type: new Schema({
+    imageUrl: { type: String, required: true, maxlength: 2048 },
+    author: { type: String, required: true, maxlength: 200 },
+    excerpt: { type: String, required: true, maxlength: 500 },
+  }, { _id: false }), default: null },
 }, { versionKey: false, bufferCommands: false });
 
 articleSchema.index({ sourceId: 1, externalId: 1 }, { unique: true });

@@ -11,6 +11,7 @@ const json = (value: unknown) => new Response(JSON.stringify(value), { headers: 
 function mockApi(articles: (url: URL) => Response | Promise<Response>) {
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
     const url = new URL(String(input), 'http://localhost');
+    if (url.pathname.endsWith('/sources/status')) return json({ items: [{ sourceId: 'mediapool', lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString() }] });
     if (url.pathname.endsWith('/sources')) return json({ items: [{ id: 'mediapool', name: 'Mediapool' }] });
     if (url.pathname.endsWith('/tags')) return json({ items: [{ id: 'sofia', name: 'София' }] });
     return articles(url);
@@ -25,6 +26,7 @@ describe('news feed', () => {
     render(<NewsPage />);
     expect(await screen.findByRole('link', { name: 'Новини от София' })).toHaveAttribute('href', 'https://example.com/1');
     expect(screen.getByText('20 Oct 2026', { exact: false })).toBeInTheDocument();
+    expect(await screen.findByText(/Last checked:/)).toHaveTextContent('Mediapool');
   });
 
   it('recovers from a failed request when the reader retries', async () => {
@@ -62,5 +64,27 @@ describe('news feed', () => {
     await userEvent.selectOptions(screen.getByLabelText('Topic'), 'sofia');
     await waitFor(() => expect(screen.queryByRole('link', { name: 'First story' })).not.toBeInTheDocument());
     expect(await screen.findByRole('link', { name: 'Filtered story' })).toBeInTheDocument();
+  });
+
+  it('submits a headline search, retains it on pagination, and clears it with filters', async () => {
+    mockApi((url) => {
+      if (url.searchParams.get('q') === 'София') {
+        return url.searchParams.has('cursor')
+          ? json({ items: [article('3', 'Втора новина за София')], nextCursor: null })
+          : json({ items: [article('2', 'Новина за София')], nextCursor: 'searched-next' });
+      }
+      return json({ items: [article('1', 'All headlines')], nextCursor: null });
+    });
+    render(<NewsPage />);
+    await screen.findByRole('link', { name: 'All headlines' });
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search headlines' }), 'София');
+    await userEvent.click(screen.getByRole('button', { name: 'Search' }));
+    expect(await screen.findByRole('link', { name: 'Новина за София' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'All headlines' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Load more stories' }));
+    expect(await screen.findByRole('link', { name: 'Втора новина за София' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Clear filters/ }));
+    expect(await screen.findByRole('link', { name: 'All headlines' })).toBeInTheDocument();
+    expect(screen.getByRole('searchbox', { name: 'Search headlines' })).toHaveValue('');
   });
 });

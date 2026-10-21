@@ -2,7 +2,7 @@
 * { box-sizing: border-box; }
 body { margin: 0; }
 a { color: inherit; }
-button, select { font: inherit; }
+button, select, input { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: wait; opacity: .55; }
 :focus-visible { outline: 3px solid #bc482e; outline-offset: 5px; }
@@ -30,6 +30,10 @@ h1 em { color: #bc482e; font-weight: 400; }
 .filters label { display: grid; gap: 8px; font-size: 10px; font-weight: 700; letter-spacing: .8px; color: #637066; }
 .filters select { color: #303a32; min-width: 150px; padding: 10px 30px 10px 12px; background: transparent; border: 1px solid #c9cfc5; border-radius: 3px; font-size: 13px; letter-spacing: 0; }
 .clear-filters { padding-bottom: 12px; }
+.headline-search { display: flex; align-items: end; gap: 10px; width: 100%; }
+.headline-search label { flex: 1; min-width: 0; }
+.headline-search input { width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid #c9cfc5; border-radius: 3px; background: transparent; color: #303a32; font-size: 13px; letter-spacing: 0; }
+.search-button { padding: 10px 16px; border: 1px solid #c9cfc5; border-radius: 3px; color: #303a32; background: transparent; font-size: 13px; }
 .news-card { padding: 27px 0 23px; border-bottom: 1px solid #d5d8d0; }
 .article-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 10px; color: #647067; }
 .publisher { color: #9d3a25; font-weight: 700; font-size: 11px; }
@@ -55,6 +59,7 @@ h1 em { color: #bc482e; font-weight: 400; }
 .empty-mark { font: 40px Georgia, serif; color: #bc482e; }
 .muted { color: #637066; font-size: 12px; }
 .notice { margin: 20px 0; padding: 20px; border: 1px solid #d8b5a9; background: #f6ede6; font-size: 13px; line-height: 1.8; }
+.new-stories { position: sticky; top: 12px; z-index: 1; }
 .retry-button { margin-left: 10px; padding: 6px 10px; background: transparent; color: #8b3422; border: 1px solid #b7644f; border-radius: 3px; }
 .pagination { padding: 28px 0; }
 .load-more { display: flex; align-items: center; justify-content: space-between; width: 100%; border: 1px solid #c9cfc5; color: #303a32; background: transparent; padding: 15px 18px; font-size: 12px; }
@@ -86,3 +91,7 @@ h1 em { color: #bc482e; font-weight: 400; }
   .footer { margin-top: 45px; flex-direction: column; gap: 10px; }
 }
 @media (prefers-reduced-motion: no-preference) { a, button { transition: color .15s, background-color .15s; } }
+.article-preview { margin-bottom: 21px; overflow-wrap: anywhere; }
+.article-photo { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; }
+.article-author { margin: 12px 0 8px; color: #637066; font-size: 11px; line-height: 1.6; }
+.article-excerpt { margin: 0; color: #566158; font-size: 14px; line-height: 1.7; }

@@ -5,6 +5,7 @@ import { normalizeArticle } from '../src/modules/ingestion/article.normalizer.js
 import { fetchFeed } from '../src/modules/ingestion/rss.client.js';
 import { collectSources } from '../src/modules/ingestion/ingestion.service.js';
 import { Article } from '../src/modules/articles/articles.model.js';
+import { SourceStatus } from '../src/modules/sources/sources.model.js';
 
 const now = new Date('2026-10-20T12:00:00Z');
 const source = { id: 'fixture', name: 'Fixture', feedUrl: 'https://example.com/feed' };
@@ -30,12 +31,22 @@ describe('article normalization', () => {
     const result = normalizeArticle({ title: '<b>София</b> &amp; новини', link: 'https://example.com/2', pubDate: 'invalid' }, source.id, now);
     expect(result).toMatchObject({ externalId: 'https://example.com/2', title: 'София & новини', publishedAt: now });
   });
+  it('uses first-seen time for timezone-free feed dates even when the parser supplies an ISO date', async () => {
+    const feed = await fetchFeed('https://telegraph.bg/rss', async () => new Response(
+      '<rss version="2.0"><channel><title>Fixture</title><item><guid>telegraph-1</guid><title>Новини от София</title><link>https://telegraph.bg/novini/1</link><pubDate>2026-10-21 14:38:44</pubDate></item></channel></rss>',
+      { headers: { 'Content-Type': 'text/html' } },
+    ));
+    expect(normalizeArticle(feed.items[0]!, 'telegraph', now)).toMatchObject({ title: 'Новини от София', publishedAt: now });
+  });
   it.each(['javascript:alert(1)', 'file:///etc/passwd', 'https://user:secret@example.com/a', 'not-a-url'])('discards unsafe links: %s', (link) => {
     expect(normalizeArticle({ ...item, link }, source.id, now)).toBeNull();
   });
   it('discards missing headlines and links', () => {
     expect(normalizeArticle({ ...item, title: ' ' }, source.id, now)).toBeNull();
     expect(normalizeArticle({ title: 'News' }, source.id, now)).toBeNull();
+  });
+  it('discards an oversized headline instead of republishing a shortened title', () => {
+    expect(normalizeArticle({ ...item, title: 'я'.repeat(501) }, source.id, now)).toBeNull();
   });
   it('discards a URL that exceeds the limit after Cyrillic percent encoding', () => {
     expect(normalizeArticle({ ...item, link: `https://example.com/${'я'.repeat(400)}` }, source.id, now)).toBeNull();
@@ -67,9 +78,30 @@ describe('collection with MongoDB', () => {
   beforeAll(async () => {
     await mongoose.connect(process.env.TEST_MONGODB_URI ?? 'mongodb://127.0.0.1:27018/bulgarian_news_test');
     await Article.init();
+    await SourceStatus.init();
   });
-  beforeEach(async () => { await Article.deleteMany({ sourceId: { $in: ['fixture', 'broken'] } }); });
+  beforeEach(async () => {
+    await Article.deleteMany({ sourceId: { $in: ['fixture', 'broken'] } });
+    await SourceStatus.deleteMany({ _id: { $in: ['fixture', 'broken'] } });
+  });
   afterAll(async () => { await mongoose.disconnect(); });
+
+  it('records successful empty checks and preserves success when a later check fails', async () => {
+    await collectSources([source], { loadFeed: async () => ({ items: [] }), now });
+    expect(await SourceStatus.findById(source.id).lean()).toMatchObject({ lastAttemptAt: now, lastSuccessAt: now });
+    const later = new Date('2026-10-20T12:05:00Z');
+    await collectSources([source], { loadFeed: async () => { throw new Error('Unavailable'); }, now: later });
+    expect(await SourceStatus.findById(source.id).lean()).toMatchObject({ lastAttemptAt: later, lastSuccessAt: now });
+    expect(await Article.countDocuments({ sourceId: source.id })).toBe(0);
+  });
+
+  it('records the attempt before fetching, including a first failed check', async () => {
+    await collectSources([source], { loadFeed: async () => {
+      expect(await SourceStatus.findById(source.id).lean()).toMatchObject({ lastAttemptAt: now, lastSuccessAt: null });
+      throw new Error('Unavailable');
+    }, now });
+    expect(await SourceStatus.findById(source.id).lean()).toMatchObject({ lastAttemptAt: now, lastSuccessAt: null });
+  });
 
   it('imports twice without duplicates and preserves first-seen and fallback dates', async () => {
     const undated = { ...item, pubDate: undefined };

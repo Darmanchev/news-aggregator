@@ -2,15 +2,29 @@ import type { Item } from 'rss-parser';
 import { decodeHTML } from 'entities';
 import type { ArticleInput } from '../articles/articles.model.js';
 import { assignTags } from '../tagging/tagging.service.js';
+import { sources } from '../sources/sources.config.js';
 
 function plainText(value: unknown): string {
   if (typeof value !== 'string') return '';
   return decodeHTML(value.slice(0, 20_000).replace(/<[^>]*>/g, ' ')).replace(/\s+/gu, ' ').trim();
 }
 
+function normalizePreview(item: Item, sourceId: string): ArticleInput['preview'] {
+  const hosts = sources.find(({ id }) => id === sourceId)?.imageHosts;
+  if (!hosts || !item.enclosure || !['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'].includes(item.enclosure.type ?? '')) return null;
+  const author = plainText(item.creator);
+  const excerpt = plainText(item.contentSnippet ?? item.content).slice(0, 500);
+  if (!author || author.length > 200 || !excerpt || typeof item.enclosure.url !== 'string' || item.enclosure.url.length > 2048) return null;
+  try {
+    const image = new URL(item.enclosure.url);
+    if (image.protocol !== 'https:' || image.username || image.password || image.port || !hosts.includes(image.hostname) || image.href.length > 2048) return null;
+    return { imageUrl: image.href, author, excerpt };
+  } catch { return null; }
+}
+
 export function normalizeArticle(item: Item, sourceId: string, now: Date): ArticleInput | null {
-  const title = plainText(item.title).slice(0, 500);
-  if (!title || typeof item.link !== 'string' || item.link.length > 2048) return null;
+  const title = plainText(item.title);
+  if (!title || title.length > 500 || typeof item.link !== 'string' || item.link.length > 2048) return null;
 
   let url: URL;
   try { url = new URL(item.link); } catch { return null; }
@@ -22,11 +36,15 @@ export function normalizeArticle(item: Item, sourceId: string, now: Date): Artic
   if (url.href.length > 2048) return null;
   const externalId = typeof item.guid === 'string' && item.guid.trim() ? item.guid.trim() : url.href;
   if (externalId.length > 2048) return null;
-  const date = new Date(item.isoDate ?? item.pubDate ?? '');
+  // Do not inherit the server's timezone for publisher dates without an offset.
+  const unzoned = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(item.pubDate ?? '');
+  const date = new Date(unzoned ? '' : item.isoDate ?? item.pubDate ?? '');
+  const preview = normalizePreview(item, sourceId);
 
   return {
     sourceId, externalId, title, url: url.href,
     publishedAt: Number.isFinite(date.getTime()) ? date : now,
     tags: assignTags(`${title} ${plainText(item.contentSnippet ?? item.content)}`),
+    ...(preview ? { preview } : {}),
   };
 }

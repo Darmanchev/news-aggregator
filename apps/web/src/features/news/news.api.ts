@@ -1,4 +1,9 @@
 export interface Option { id: string; name: string }
+export interface SourceStatus {
+  sourceId: string;
+  lastAttemptAt: string | null;
+  lastSuccessAt: string | null;
+}
 export interface Article {
   id: string;
   title: string;
@@ -7,9 +12,10 @@ export interface Article {
   sourceId: string;
   sourceName: string;
   tags: string[];
+  preview?: { imageUrl: string; author: string; excerpt: string } | null;
 }
 export interface ArticlePage { items: Article[]; nextCursor: string | null }
-export interface Filters { source: string; tag: string }
+export interface Filters { source: string; tag: string; q: string }
 
 async function getJson<T>(path: string, signal: AbortSignal): Promise<T> {
   const response = await fetch(path, { signal });
@@ -17,10 +23,15 @@ async function getJson<T>(path: string, signal: AbortSignal): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+export function fetchSourceStatuses(signal: AbortSignal) {
+  return getJson<{ items: SourceStatus[] }>('/api/sources/status', signal);
+}
+
 export function fetchArticles(filters: Filters, signal: AbortSignal, cursor?: string): Promise<ArticlePage> {
   const query = new URLSearchParams({ limit: '20' });
   if (filters.source) query.set('source', filters.source);
   if (filters.tag) query.set('tag', filters.tag);
+  if (filters.q) query.set('q', filters.q);
   if (cursor) query.set('cursor', cursor);
   return getJson(`/api/articles?${query}`, signal);
 }
