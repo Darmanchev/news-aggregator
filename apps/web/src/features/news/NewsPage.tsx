@@ -88,7 +88,7 @@ export function NewsPage() {
             {optionsError && <div role="alert" className="notice">Could not load the filters. <button onClick={refresh} className="text-button">Retry filters</button></div>}
             <div aria-busy={loading || loadingMore}>
               {loading && <p role="status" className="feed-status">Gathering the headlines…</p>}
-              {articles.map((article) => <NewsCard key={article.id} article={article} tags={options.tags} onTag={(tag) => setFilters({ ...filters, tag })} />)}
+              <div className="news-grid">{articles.map((article) => <NewsCard key={article.id} article={article} tags={options.tags} onTag={(tag) => setFilters({ ...filters, tag })} />)}</div>
               {error && <div role="alert" className="notice">Could not load the news. Please try again. <button className="retry-button" onClick={articles.length ? () => void loadMore() : refresh}>Try again</button></div>}
               {!loading && !error && articles.length === 0 && <div className="feed-status"><span className="empty-mark" aria-hidden="true">—</span><p>No stories match these filters.</p><p className="muted">Try another topic or source. New stories appear after the next collection.</p></div>}
             </div>

@@ -10,7 +10,8 @@
     "collect:watch": "tsx --env-file-if-exists=../../.env src/jobs/collect-news.ts --watch",
     "collect:prod": "node --env-file-if-exists=../../.env dist/jobs/collect-news.js",
     "worker": "node --env-file-if-exists=../../.env dist/jobs/collect-news.js --watch",
-    "start": "node --env-file-if-exists=../../.env dist/server.js"
+    "start": "node --env-file-if-exists=../../.env dist/server.js",
+    "photos:backfill": "tsx --env-file-if-exists=../../.env src/jobs/backfill-photos.ts"
   },
   "dependencies": {
     "entities": "^7.0.1",

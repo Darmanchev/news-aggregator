@@ -20,8 +20,8 @@ const articleSchema = new Schema<ArticleInput & { firstSeenAt: Date }>({
   tags: [{ type: String }],
   preview: { type: new Schema({
     imageUrl: { type: String, required: true, maxlength: 2048 },
-    author: { type: String, required: true, maxlength: 200 },
-    excerpt: { type: String, required: true, maxlength: 500 },
+    author: { type: String, default: '', maxlength: 200 },
+    excerpt: { type: String, default: '', maxlength: 500 },
   }, { _id: false }), default: null },
 }, { versionKey: false, bufferCommands: false });
 

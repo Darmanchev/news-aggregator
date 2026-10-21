@@ -11,7 +11,15 @@ export async function fetchFeed(url: string, fetcher: typeof fetch = fetch) {
     headers: { 'User-Agent': 'BulgarianNews/0.1 (RSS reader)', Accept: 'application/rss+xml, application/xml, text/xml' },
   });
   if (!response.ok) throw new Error(`Feed returned HTTP ${response.status}`);
-  if (!response.body) throw new Error('Feed returned an empty response');
+  const xml = await readBoundedResponse(response);
+  if (/<!DOCTYPE/i.test(xml)) throw new Error('Feed document types are not supported');
+  const feed = await parser.parseString(xml);
+  if (feed.items.length > 500) throw new Error('Feed has too many articles');
+  return feed;
+}
+
+export async function readBoundedResponse(response: Response): Promise<string> {
+  if (!response.body) throw new Error('Response is empty');
 
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -21,15 +29,11 @@ export async function fetchFeed(url: string, fetcher: typeof fetch = fetch) {
       const { value, done } = await reader.read();
       if (done) break;
       bytes += value.byteLength;
-      if (bytes > maxBytes) throw new Error('Feed is too large');
+      if (bytes > maxBytes) throw new Error('Response is too large');
       chunks.push(value);
     }
   } finally {
     await reader.cancel();
   }
-  const xml = Buffer.concat(chunks).toString('utf8');
-  if (/<!DOCTYPE/i.test(xml)) throw new Error('Feed document types are not supported');
-  const feed = await parser.parseString(xml);
-  if (feed.items.length > 500) throw new Error('Feed has too many articles');
-  return feed;
+  return Buffer.concat(chunks).toString('utf8');
 }

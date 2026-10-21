@@ -30,7 +30,7 @@ MongoDB 7 is used locally because MongoDB 8 refused startup on the current Docke
 ## What is included
 
 - Real RSS ingestion from Mediapool, Вестник Телеграф, OFFNews, and Дневник.
-- OFFNews and Дневник photo cards with the supplied author and a feed excerpt, lazy loading, and a text fallback.
+- Publisher photo cards for all four sources, with available author credits, short excerpts, lazy loading, and a text fallback.
 - Persistent articles ordered by publication time, with stable cursor pagination.
 - Source and topic filters, literal headline search, keyword tags, and original publisher links.
 - Responsive frontend with loading, empty, failure/retry, and load-more states.
@@ -40,7 +40,7 @@ MongoDB 7 is used locally because MongoDB 8 refused startup on the current Docke
 - A new-stories notice checked every minute; loaded pages stay in place until the reader chooses to refresh.
 - Optional email alerts after 15 minutes of continued source failure, with one message per outage.
 
-No subscription or API key is required for the enabled news feeds. There are no AI dependencies, reader accounts, advertising, or full-article scraping. Photo previews are enabled only where the publisher permits RSS image reuse.
+No subscription or API key is required for the enabled news feeds. There are no AI dependencies, reader accounts, advertising, or stored full articles. Missing RSS photos are looked up in the original publisher page’s preview metadata. Publisher reuse conditions still apply; see below.
 
 ## Project layout
 
@@ -73,7 +73,7 @@ Enabled sources:
 
 - [OFFNews RSS](https://offnews.bg/rss/): [OFFMedia terms VI.2](https://id.offmedia.bg/terms2018.html) permit website aggregation of RSS titles, authors, photos and the first 500 text characters. The collector uses `https://feed.offnews.bg/rss/all`; photo cards show the supplied author, a plain-text feed excerpt of at most 500 characters, source name, and original article link. Terms and a 70-item feed checked on 21 October 2026.
 
-- [Дневник RSS](https://www.dnevnik.bg/rss/): [Economedia terms III.3](https://www.economedia.bg/show.php?guid=550170&lang=bg) explicitly permit website aggregation of RSS content, including feed photos accompanied by the title, feed excerpt (up to 500 characters) and author. Checked on 21 October 2026: 30 feed entries. Photos are supplied in RSS HTML on `img.dnevnik.bg`; the collector extracts only the image URL, not article pages.
+- [Дневник RSS](https://www.dnevnik.bg/rss/): [Economedia terms III.3](https://www.economedia.bg/show.php?guid=550170&lang=bg) explicitly permit website aggregation of RSS content, including feed photos accompanied by the title, feed excerpt (up to 500 characters) and author. Checked on 21 October 2026: 30 feed entries. Photos are supplied in RSS HTML on `img.dnevnik.bg`; the collector uses that supplied image before trying original-page metadata.
 
 This application displays headlines, metadata, and approved feed previews, not full articles. It rejects titles longer than 500 characters rather than shortening publisher headlines. Telegraph's feed omits timezone offsets, so those articles use their first collection time for ordering/display rather than a guessed publication time. That date stays stable on subsequent collections. First-run Telegraph items therefore share a fallback timestamp; their order within that timestamp uses the normal ID tie-breaker.
 
@@ -85,11 +85,21 @@ Mediapool returned 10 recent items during its initial verification; Telegraph re
 
 ## Photo previews
 
-OFFNews supplies licensed RSS image enclosures; Дневник supplies images embedded in RSS HTML. Both include authors and excerpts. Only their approved HTTPS hosts, `i2.offnews.bg` and `img.dnevnik.bg`, are enabled in source configuration and the browser content security policy. Embedded image extraction accepts the simple quoted `<img src>` format used by Дневник; if that markup changes, photos fall back to text while headlines remain readable. The collector rejects unsafe URLs, credentials, nonstandard ports, unsupported image types, and incomplete attribution; the headline still imports. Stored previews are cleared if a later feed entry no longer supplies approved media, and the API hides previews for text-only sources.
+The collector first uses the publisher’s RSS image: OFFNews enclosures, Дневник embedded images, and Telegraph’s `image/jpg` enclosures. If RSS supplies no usable preview, it reads the original article’s Open Graph/Twitter image and description metadata. Mediapool currently needs this fallback. Authors and excerpts are retained when supplied; neither is invented when missing. Excerpts are plain text and limited to 500 characters.
 
-Photos load directly from the publisher with lazy loading, asynchronous decoding and no referrer header; the application does not download/cache images or scrape article pages. A failed image leaves a readable card with its author/excerpt. Existing article records gain previews when they next appear in a collected feed; no migration is needed. Restart the API and collector after updating, then refresh the page after collection.
+Requests are sequential, limited to 10 seconds and 2 MB per article page, and follow at most three redirects after validating every destination against the publisher host list. Only the configured publisher’s exact HTTPS hosts may be requested. Image URLs must match the source’s configured HTTPS image hosts; the browser policy uses the same list. Full article text is not stored. Image files load directly from the publisher without a referrer; they are not downloaded or cached by the server.
 
-[Mediapool terms III.3](https://www.mediapool.bg/terms/) permit feed photos only alongside the title, first 500 text characters and author, but its checked feed currently supplies no image enclosures and empty author fields, so it remains text-only. Telegraph's RSS permission covers titles/paragraphs, without photo clearance. Other image hosts/publishers remain disabled until their feed metadata and reuse conditions are verified.
+Existing valid previews are reused when RSS omits them, avoiding repeat page requests every five minutes. Metadata failures do not stop headline collection. Missing previews are retried during later collections. A publisher may omit a photo, block hotlinking, or remove an image; those cards retain a readable fallback. Saved image URLs are not continuously checked for availability.
+
+To refresh photos for older stored stories, run once from the project root:
+
+```sh
+npm run photos:backfill
+```
+
+This first collects the latest RSS entries, then checks older records without previews. It updates only photo metadata, preserves article identities and dates, and reports added/unavailable/failed counts. It does not send email alerts. Restart the running collector after updating its code; refresh the browser after collection. The development API reloads automatically; a production API must be restarted to apply the updated image policy.
+
+Mediapool, OFFNews and Economedia publish RSS photo reuse conditions requiring attribution and accompanying excerpts. Mediapool’s metadata fallback extends beyond the RSS fields originally implemented. Telegraph’s checked RSS terms explicitly cover titles/paragraphs; photo reuse permission remains unconfirmed. Enabling a supplied image technically does not establish publication rights: confirm applicable permissions before public reuse.
 
 Additional publishers checked but not enabled: News.bg, Money.bg, Topsport.bg, Lifestyle.bg, Investor and Dnes have noncommercial-only RSS terms or require written aggregation permission. RuseMedia's advertised feed returns HTTP 500. Publicly accessible feeds/photos alone are not treated as reuse permission.
 

@@ -1,5 +1,5 @@
 import { Article, type ArticleInput } from './articles.model.js';
-import { sources } from '../sources/sources.config.js';
+import { sources, isSourceImageUrl } from '../sources/sources.config.js';
 import type { ArticleQuery } from './articles.validation.js';
 
 export async function saveArticle(article: ArticleInput, now: Date): Promise<void> {
@@ -31,7 +31,7 @@ export async function listArticles(query: ArticleQuery) {
       publishedAt: article.publishedAt.toISOString(), tags: article.tags,
       sourceId: article.sourceId,
       sourceName: sources.find(({ id }) => id === article.sourceId)?.name ?? article.sourceId,
-      preview: sources.find(({ id }) => id === article.sourceId)?.imageHosts ? article.preview ?? null : null,
+      preview: article.preview && isSourceImageUrl(article.preview.imageUrl, article.sourceId) ? article.preview : null,
     })),
     nextCursor: rows.length > query.limit && last
       ? Buffer.from(JSON.stringify({ date: last.publishedAt.toISOString(), id: last._id.toString() })).toString('base64url')

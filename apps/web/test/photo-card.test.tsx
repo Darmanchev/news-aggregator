@@ -31,11 +31,12 @@ it('renders a licensed photo with attribution, Bulgarian excerpt, and the origin
   }
 });
 
-it.each([undefined, null])('keeps articles without a preview text-only (%s)', (value) => {
+it.each([undefined, null])('keeps articles without a preview readable with a labelled photo placeholder (%s)', (value) => {
   render(<NewsCard article={{ ...article, preview: value }} tags={tags} onTag={() => {}} />);
   expect(screen.queryByRole('presentation')).not.toBeInTheDocument();
   expect(screen.getByRole('link', { name: article.title })).toBeInTheDocument();
   expect(screen.queryByText(/Автор:/)).not.toBeInTheDocument();
+  expect(screen.getByText('No preview photo')).toBeInTheDocument();
 });
 
 it('removes a failed photo while retaining the author and excerpt', () => {
@@ -45,6 +46,7 @@ it('removes a failed photo while retaining the author and excerpt', () => {
   expect(screen.getByText('Автор: Иван Иванов')).toBeInTheDocument();
   expect(screen.getByText('Новината накратко.')).toBeInTheDocument();
   expect(screen.getByRole('link', { name: article.title })).toBeInTheDocument();
+  expect(screen.getByText('No preview photo')).toBeInTheDocument();
 });
 
 it('tries a changed image URL after an earlier image failed for the same article', () => {
@@ -61,4 +63,12 @@ it('limits excerpts to 500 characters and preserves keyboard topic navigation', 
   screen.getByRole('button', { name: '#София' }).focus();
   await userEvent.keyboard('{Enter}');
   expect(onTag).toHaveBeenCalledWith('sofia');
+});
+
+it.each([preview, null])('shows the Telegraph name instead of a photo, with or without preview metadata (%s)', (value) => {
+  render(<NewsCard article={{ ...article, sourceId: 'telegraph', sourceName: 'Вестник Телеграф', preview: value }} tags={tags} onTag={() => {}} />);
+  expect(screen.getByText('Телеграф')).toHaveAttribute('lang', 'bg');
+  expect(screen.queryByRole('presentation')).not.toBeInTheDocument();
+  expect(screen.queryByText('No preview photo')).not.toBeInTheDocument();
+  expect(screen.getByRole('link', { name: article.title })).toHaveAttribute('href', article.url);
 });

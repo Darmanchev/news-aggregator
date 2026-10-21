@@ -20,8 +20,12 @@ describe('licensed RSS previews', () => {
     expect(normalizeArticle({ ...item, content: 'я'.repeat(600) }, 'offnews', now)?.preview?.excerpt).toHaveLength(500);
   });
 
-  it('does not take photos from sources without photo permission', () => {
+  it('rejects another publisher image host', () => {
     expect(normalizeArticle(item, 'telegraph', now)).not.toHaveProperty('preview');
+  });
+
+  it('accepts Telegraph image/jpg enclosures from its actual CDN', () => {
+    expect(normalizeArticle({ ...item, enclosure: { url: 'https://m.netinfo.bg/media/story.jpg', type: 'image/jpg' } }, 'telegraph', now)?.preview?.imageUrl).toBe('https://m.netinfo.bg/media/story.jpg');
   });
 
   it('reads a licensed embedded RSS image and decodes its URL without retaining HTML', () => {
@@ -50,9 +54,9 @@ describe('licensed RSS previews', () => {
     expect(result).not.toHaveProperty('preview');
   });
 
-  it('does not show a photo without its required author, excerpt, or image type', () => {
+  it('rejects oversized author credits and unsupported image types', () => {
     for (const invalid of [
-      { ...item, creator: '' }, { ...item, content: '' },
+
       { ...item, creator: 'a'.repeat(201) }, { ...item, enclosure: { ...item.enclosure, type: 'text/html' } },
     ]) expect(normalizeArticle(invalid, 'offnews', now)).not.toHaveProperty('preview');
   });
@@ -71,13 +75,13 @@ describe('stored and public photo previews', () => {
     const app = createApp();
     const response = await request(app).get('/api/articles?source=offnews').expect(200);
     expect(response.body.items[0]).toMatchObject({ title: item.title, preview });
-    expect(response.headers['content-security-policy']).toContain('img-src \'self\' data: https://i2.offnews.bg');
+    expect(response.headers['content-security-policy']).toContain('https://i2.offnews.bg');
     await saveArticle(normalizeArticle({ ...item, enclosure: undefined }, 'offnews', now)!, now);
     expect((await request(app).get('/api/articles?source=offnews').expect(200)).body.items[0].preview).toBeNull();
     expect((await Article.findOne({ externalId: 'preview-fixture' }).lean())?.preview).toBeNull();
   });
 
-  it('hides stored photo data for a source without permission', async () => {
+  it('hides stored photo data from another publisher host', async () => {
     await Article.create({ ...normalizeArticle(item, 'telegraph', now), firstSeenAt: now, preview });
     const response = await request(createApp()).get('/api/articles?source=telegraph').expect(200);
     const article = response.body.items.find((row: { title: string }) => row.title === item.title);

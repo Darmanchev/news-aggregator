@@ -86,6 +86,23 @@ describe('collection with MongoDB', () => {
   });
   afterAll(async () => { await mongoose.disconnect(); });
 
+  it('enriches missing photos without losing headlines on metadata failures or refetching saved photos', async () => {
+    const { sources } = await import('../src/modules/sources/sources.config.js');
+    const mediapool = sources.find(({ id }) => id === 'mediapool')!;
+    const entry = { ...item, guid: 'photo-enrichment-fixture', link: 'https://www.mediapool.bg/news/story/', contentSnippet: 'Анонс.' };
+    try {
+      const options = { loadFeed: async () => ({ items: [entry] }), now,
+        loadPreview: async () => ({ imageUrl: 'https://www.mediapool.bg/story.jpg', author: '', excerpt: 'Анонс.' }) };
+      await collectSources([mediapool], options);
+      expect((await Article.findOne({ externalId: entry.guid }).lean())?.preview?.imageUrl).toBe('https://www.mediapool.bg/story.jpg');
+      await collectSources([mediapool], { ...options, loadPreview: async () => { throw new Error('Temporary outage'); } });
+      expect((await Article.findOne({ externalId: entry.guid }).lean())?.preview?.imageUrl).toBe('https://www.mediapool.bg/story.jpg');
+    } finally {
+      await Article.deleteMany({ externalId: entry.guid });
+      await SourceStatus.deleteMany({ _id: 'mediapool' });
+    }
+  });
+
   it('records successful empty checks and preserves success when a later check fails', async () => {
     await collectSources([source], { loadFeed: async () => ({ items: [] }), now });
     expect(await SourceStatus.findById(source.id).lean()).toMatchObject({ lastAttemptAt: now, lastSuccessAt: now });
