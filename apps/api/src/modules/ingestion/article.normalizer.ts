@@ -11,12 +11,15 @@ function plainText(value: unknown): string {
 
 function normalizePreview(item: Item, sourceId: string): ArticleInput['preview'] {
   const hosts = sources.find(({ id }) => id === sourceId)?.imageHosts;
-  if (!hosts || !item.enclosure || !['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'].includes(item.enclosure.type ?? '')) return null;
+  if (!hosts || (item.enclosure && !['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'].includes(item.enclosure.type ?? ''))) return null;
+  // shortcut: embedded photos require a simple quoted <img src>, use an HTML parser if publisher markup changes.
+  const embedded = item.content?.slice(0, 20_000).match(/<img\s+src\s*=\s*(["'])([^"'<>]+)\1\s*\/?>/i)?.[2];
+  const imageUrl = item.enclosure?.url ?? (embedded ? decodeHTML(embedded) : undefined);
   const author = plainText(item.creator);
   const excerpt = plainText(item.contentSnippet ?? item.content).slice(0, 500);
-  if (!author || author.length > 200 || !excerpt || typeof item.enclosure.url !== 'string' || item.enclosure.url.length > 2048) return null;
+  if (!author || author.length > 200 || !excerpt || typeof imageUrl !== 'string' || imageUrl.length > 2048) return null;
   try {
-    const image = new URL(item.enclosure.url);
+    const image = new URL(imageUrl);
     if (image.protocol !== 'https:' || image.username || image.password || image.port || !hosts.includes(image.hostname) || image.href.length > 2048) return null;
     return { imageUrl: image.href, author, excerpt };
   } catch { return null; }

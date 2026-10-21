@@ -70,7 +70,7 @@ describe('news API with MongoDB', () => {
 
   it('returns source and tag options without exposing configuration', async () => {
     const sources = await request(app).get('/api/sources').expect(200);
-    expect(sources.body.items).toEqual([{ id: 'mediapool', name: 'Mediapool' }, { id: 'telegraph', name: 'Вестник Телеграф' }, { id: 'offnews', name: 'OFFNews' }]);
+    expect(sources.body.items).toEqual([{ id: 'mediapool', name: 'Mediapool' }, { id: 'telegraph', name: 'Вестник Телеграф' }, { id: 'offnews', name: 'OFFNews' }, { id: 'dnevnik', name: 'Дневник' }]);
     const tags = await request(app).get('/api/tags').expect(200);
     expect(tags.body.items).toContainEqual({ id: 'sofia', name: 'София' });
   });
@@ -81,6 +81,7 @@ describe('news API with MongoDB', () => {
         { sourceId: 'mediapool', lastAttemptAt: null, lastSuccessAt: null },
         { sourceId: 'telegraph', lastAttemptAt: null, lastSuccessAt: null },
         { sourceId: 'offnews', lastAttemptAt: null, lastSuccessAt: null },
+        { sourceId: 'dnevnik', lastAttemptAt: null, lastSuccessAt: null },
       ],
     });
     await SourceStatus.insertMany([
@@ -92,6 +93,7 @@ describe('news API with MongoDB', () => {
         { sourceId: 'mediapool', lastAttemptAt: '2026-10-20T12:05:00.000Z', lastSuccessAt: '2026-10-20T12:00:00.000Z' },
         { sourceId: 'telegraph', lastAttemptAt: null, lastSuccessAt: null },
         { sourceId: 'offnews', lastAttemptAt: null, lastSuccessAt: null },
+        { sourceId: 'dnevnik', lastAttemptAt: null, lastSuccessAt: null },
       ],
     });
   });

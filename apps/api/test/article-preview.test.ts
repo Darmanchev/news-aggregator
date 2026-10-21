@@ -24,6 +24,22 @@ describe('licensed RSS previews', () => {
     expect(normalizeArticle(item, 'telegraph', now)).not.toHaveProperty('preview');
   });
 
+  it('reads a licensed embedded RSS image and decodes its URL without retaining HTML', () => {
+    expect(normalizeArticle({ ...item, enclosure: undefined, contentSnippet: 'Анонс от Дневник.',
+      content: '<img src="https://img.dnevnik.bg/shimg/story.jpg?a=1&amp;b=2" /><br />Анонс от Дневник.',
+    }, 'dnevnik', now)?.preview).toEqual({
+      imageUrl: 'https://img.dnevnik.bg/shimg/story.jpg?a=1&b=2', author: item.creator, excerpt: 'Анонс от Дневник.',
+    });
+  });
+
+  it('does not mistake other attributes for an embedded photo URL or allow an unapproved host', () => {
+    for (const content of [
+      '<img data-src="https://img.dnevnik.bg/a.jpg" />',
+      '<img src="https://evil.example/a.jpg" />',
+      '<img src="javascript:alert(1)" />',
+    ]) expect(normalizeArticle({ ...item, enclosure: undefined, content, contentSnippet: 'Анонс.' }, 'dnevnik', now)).not.toHaveProperty('preview');
+  });
+
   it.each([
     'javascript:alert(1)', 'http://i2.offnews.bg/a.jpg', 'https://other.example/a.jpg',
     'https://i2.offnews.bg.evil.example/a.jpg', 'https://user:secret@i2.offnews.bg/a.jpg',
