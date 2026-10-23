@@ -1,20 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NewsCard } from './NewsCard';
 import { NewsFilters } from './NewsFilters';
 import { NewStoriesNotice } from './NewStoriesNotice';
-import { fetchArticles, fetchOptions, type Article, type Filters, type Option } from './news.api';
+import { fetchOptions, type Filters, type Option } from './news.api';
+import { useNewsFeed } from './useNewsFeed';
 
 export function NewsPage() {
   const [filters, setFilters] = useState<Filters>({ source: '', tag: '', q: '' });
   const [options, setOptions] = useState<{ sources: Option[]; tags: Option[] }>({ sources: [], tags: [] });
-  const [articles, setArticles] = useState<Article[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState(false);
   const [optionsError, setOptionsError] = useState(false);
   const [retry, setRetry] = useState(0);
-  const pageRequest = useRef<AbortController | null>(null);
+  const { articles, nextCursor, loading, loadingMore, error, loadMore } = useNewsFeed(filters, retry);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -24,42 +20,6 @@ export function NewsPage() {
     }).catch(() => { if (!controller.signal.aborted) setOptionsError(true); });
     return () => controller.abort();
   }, [retry]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    pageRequest.current?.abort();
-    pageRequest.current = controller;
-    setArticles([]);
-    setNextCursor(null);
-    setLoading(true);
-    setLoadingMore(false);
-    setError(false);
-    void fetchArticles(filters, controller.signal).then((page) => {
-      if (controller.signal.aborted) return;
-      setArticles(page.items);
-      setNextCursor(page.nextCursor);
-    }).catch(() => { if (!controller.signal.aborted) setError(true); })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => { controller.abort(); pageRequest.current?.abort(); };
-  }, [filters, retry]);
-
-  async function loadMore() {
-    if (!nextCursor || loadingMore) return;
-    const controller = new AbortController();
-    pageRequest.current = controller;
-    setLoadingMore(true);
-    setError(false);
-    try {
-      const page = await fetchArticles(filters, controller.signal, nextCursor);
-      if (controller.signal.aborted) return;
-      setArticles((previous) => {
-        const ids = new Set(previous.map(({ id }) => id));
-        return [...previous, ...page.items.filter(({ id }) => !ids.has(id))];
-      });
-      setNextCursor(page.nextCursor);
-    } catch { if (!controller.signal.aborted) setError(true); }
-    finally { if (!controller.signal.aborted) setLoadingMore(false); }
-  }
 
   const refresh = () => setRetry((value) => value + 1);
   return <>

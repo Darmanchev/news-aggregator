@@ -5,6 +5,7 @@ import { normalizeArticle } from '../src/modules/ingestion/article.normalizer.js
 import { Article } from '../src/modules/articles/articles.model.js';
 import { saveArticle } from '../src/modules/articles/articles.service.js';
 import { createApp } from '../src/app.js';
+import { connectTestDatabase } from './helpers/test-database.js';
 
 const now = new Date('2026-10-21T12:00:00Z');
 const item = {
@@ -72,11 +73,15 @@ describe('licensed RSS previews', () => {
 
 describe('stored and public photo previews', () => {
   beforeAll(async () => {
-    await mongoose.connect(process.env.TEST_MONGODB_URI ?? 'mongodb://127.0.0.1:27018/bulgarian_news_test');
+    await connectTestDatabase();
     await Article.init();
   });
   beforeEach(async () => { await Article.deleteMany({ externalId: 'preview-fixture' }); });
-  afterAll(async () => { await Article.deleteMany({ externalId: 'preview-fixture' }); await mongoose.disconnect(); });
+  afterAll(async () => {
+    try {
+      if (mongoose.connection.readyState === 1) await Article.deleteMany({ externalId: 'preview-fixture' });
+    } finally { await mongoose.disconnect(); }
+  });
 
   it('persists and returns approved preview data and clears it when no longer supplied', async () => {
     await saveArticle(normalizeArticle(item, 'offnews', now)!, now);

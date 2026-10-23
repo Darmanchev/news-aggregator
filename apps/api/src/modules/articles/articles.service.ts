@@ -2,6 +2,11 @@ import { Article, type ArticleInput } from './articles.model.js';
 import { sources, isSourceImageUrl } from '../sources/sources.config.js';
 import type { ArticleQuery } from './articles.validation.js';
 
+export async function findArticlePreview(sourceId: string, externalId: string): Promise<ArticleInput['preview']> {
+  const article = await Article.findOne({ sourceId, externalId }).select('preview').lean();
+  return article?.preview && isSourceImageUrl(article.preview.imageUrl, sourceId) ? article.preview : null;
+}
+
 export async function saveArticle(article: ArticleInput, now: Date): Promise<void> {
   const { sourceId, externalId, publishedAt, preview, ...metadata } = article;
   await Article.updateOne({ sourceId, externalId }, {

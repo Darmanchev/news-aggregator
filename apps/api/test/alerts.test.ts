@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { collectSources } from '../src/modules/ingestion/ingestion.service.js';
 import { SourceStatus } from '../src/modules/sources/sources.model.js';
 import { readAlertConfig, sendCollectionAlerts } from '../src/jobs/collection-alerts.js';
+import { connectTestDatabase } from './helpers/test-database.js';
 
 const source = { id: 'alert-fixture', name: 'Alert fixture', feedUrl: 'https://example.com/feed' };
 const start = new Date('2026-10-20T12:00:00Z');
@@ -13,7 +14,7 @@ const failedFeed = async () => { throw new Error('Feed unavailable'); };
 
 describe('collection failure alerts', () => {
   beforeAll(async () => {
-    await mongoose.connect(process.env.TEST_MONGODB_URI ?? 'mongodb://127.0.0.1:27018/bulgarian_news_alerts_test');
+    await connectTestDatabase('bulgarian_news_alerts_test');
     await SourceStatus.init();
   });
   beforeEach(async () => { await SourceStatus.deleteMany({}); });
@@ -47,7 +48,7 @@ describe('collection failure alerts', () => {
     expect(JSON.parse(requests[0]?.init?.body as string)).toMatchObject({ from: config.from, to: [config.to], subject: expect.stringContaining(source.id), text: expect.stringContaining(start.toISOString()) });
     expect(await SourceStatus.findById(source.id).lean()).toMatchObject({ lastAlertAt: threshold });
     await mongoose.disconnect();
-    await mongoose.connect(process.env.TEST_MONGODB_URI ?? 'mongodb://127.0.0.1:27018/bulgarian_news_alerts_test');
+    await connectTestDatabase('bulgarian_news_alerts_test');
     await sendCollectionAlerts([source], config, new Date('2026-10-21T12:15:00Z'), transport);
     expect(requests).toHaveLength(1);
     expect(await SourceStatus.findById('disabled').lean()).toMatchObject({ lastAlertAt: null });

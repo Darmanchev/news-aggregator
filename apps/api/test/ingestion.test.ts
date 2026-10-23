@@ -6,6 +6,7 @@ import { fetchFeed } from '../src/modules/ingestion/rss.client.js';
 import { collectSources } from '../src/modules/ingestion/ingestion.service.js';
 import { Article } from '../src/modules/articles/articles.model.js';
 import { SourceStatus } from '../src/modules/sources/sources.model.js';
+import { connectTestDatabase } from './helpers/test-database.js';
 
 const now = new Date('2026-10-20T12:00:00Z');
 const source = { id: 'fixture', name: 'Fixture', feedUrl: 'https://example.com/feed' };
@@ -76,7 +77,7 @@ describe('RSS request boundary', () => {
 
 describe('collection with MongoDB', () => {
   beforeAll(async () => {
-    await mongoose.connect(process.env.TEST_MONGODB_URI ?? 'mongodb://127.0.0.1:27018/bulgarian_news_test');
+    await connectTestDatabase();
     await Article.init();
     await SourceStatus.init();
   });

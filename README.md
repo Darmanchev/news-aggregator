@@ -2,6 +2,8 @@
 
 A working Bulgarian news aggregator built with MongoDB, Express, React, Node.js, and TypeScript. It collects real publisher headlines through RSS, stores them, assigns keyword tags, and links readers to the original articles.
 
+For a Russian walkthrough of the architecture, data flow, and project defense, see [PROJECT_GUIDE.md](PROJECT_GUIDE.md).
+
 ## Run locally
 
 Requires Node.js **22.22.2+** on the Node 22 line (or Node 24.15+ / 26+), npm, and Docker with Compose. This floor includes the UI test dependencies. Docker must be running. You can also use an existing MongoDB deployment by changing `MONGODB_URI`.
@@ -58,11 +60,13 @@ apps/
     app.ts            HTTP composition and production static hosting
     server.ts         Startup and shutdown
   web/src/
-    features/news/    News page, cards, filters, API client and public types
+    features/news/    News page, feed state hook, cards, filters, API client and public types
     app/              React entry component
 ```
 
 The backend accesses MongoDB; the browser accesses only `/api`. Controllers handle HTTP, services implement behavior, and the RSS client handles external feed requests. The collector uses the articles service rather than duplicating persistence logic. Both processes use the same backend package and database; no network communication between services is required.
+
+The frontend keeps article loading, pagination, and cancellation in `useNewsFeed`; `NewsPage` composes the reading interface and filters. During collection, an individual article error does not abandon later entries. A partially failed source preserves its previous success timestamp and reports the failed article count plus the first error. `processed` counts successful saves, including existing articles; it is not a count of newly inserted stories.
 
 ## Sources and content rights
 
@@ -144,7 +148,7 @@ npm run typecheck
 npm run build
 ```
 
-Integration tests use **`bulgarian_news_test`**, separate from the application's database. Tests use local feed fixtures and real MongoDB; they never contact publishers. `TEST_MONGODB_URI` can select another **dedicated test database**. Test setup removes its fixture records; never point it at a database containing data you need.
+Integration tests use **`bulgarian_news_test`** and **`bulgarian_news_alerts_test`**, separate from the application's database. Tests use local feed fixtures and real MongoDB; they never contact publishers. `TEST_MONGODB_URI` can select a deployment, but must explicitly name one of these two dedicated databases. A shared test helper rejects other database names before connecting and pins the database name in the connection options. Test setup removes records; these databases must contain only disposable test data.
 
 UI tests check original links, search, new-story notices, retries, pagination resets, and stale request handling. Backend tests cover Cyrillic tagging, normalization, unsafe URLs, feed size and HTTP failures, unique upserts, preserved dates, partial source failures, API validation, and equal-date pagination. Schedule tests cover timing, shutdown, and avoiding overlap. Email tests use a stub transport and fixture records only; no real email is sent.
 

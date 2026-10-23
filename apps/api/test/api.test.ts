@@ -4,11 +4,12 @@ import request from 'supertest';
 import { createApp } from '../src/app.js';
 import { Article } from '../src/modules/articles/articles.model.js';
 import { SourceStatus } from '../src/modules/sources/sources.model.js';
+import { connectTestDatabase } from './helpers/test-database.js';
 
 describe('news API with MongoDB', () => {
   const app = createApp();
   beforeAll(async () => {
-    await mongoose.connect(process.env.TEST_MONGODB_URI ?? 'mongodb://127.0.0.1:27018/bulgarian_news_test');
+    await connectTestDatabase();
     await Article.init();
     await SourceStatus.init();
   });
@@ -107,7 +108,7 @@ describe('news API with MongoDB', () => {
   it('reports unavailable freshness when the database is disconnected', async () => {
     await mongoose.disconnect();
     try { await request(app).get('/api/sources/status').expect(503); }
-    finally { await mongoose.connect(process.env.TEST_MONGODB_URI ?? 'mongodb://127.0.0.1:27018/bulgarian_news_test'); }
+    finally { await connectTestDatabase(); }
   });
 
   it('returns database readiness and JSON for unknown API routes', async () => {
