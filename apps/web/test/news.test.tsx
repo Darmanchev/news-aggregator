@@ -88,4 +88,42 @@ describe('news feed', () => {
     expect(await screen.findByRole('link', { name: 'All headlines' })).toBeInTheDocument();
     expect(screen.getByRole('searchbox', { name: 'Search headlines' })).toHaveValue('');
   });
+
+  it.each([
+    ['filter', false], ['filter', true], ['refresh', false], ['refresh', true],
+  ])('ignores a late pagination response after %s (failed: %s)', async (action, failed) => {
+    let finishPage!: (response: Response) => void;
+    let pageSignal: AbortSignal | undefined;
+    const pendingPage = new Promise<Response>((resolve) => { finishPage = resolve; });
+    let firstPages = 0;
+    mockApi((url) => {
+      if (url.searchParams.has('cursor')) return pendingPage;
+      firstPages++;
+      return json({ items: [article(String(firstPages), `Page ${firstPages}`)], nextCursor: 'next' });
+    });
+    const fetchMock = vi.mocked(fetch);
+    render(<NewsPage />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Load more stories' }));
+    pageSignal = fetchMock.mock.calls.find(([url]) => String(url).includes('cursor='))?.[1]?.signal ?? undefined;
+    if (action === 'filter') await userEvent.selectOptions(screen.getByLabelText('Topic'), 'sofia');
+    else await userEvent.click(screen.getByRole('button', { name: /Refresh news/ }));
+    expect(await screen.findByRole('link', { name: 'Page 2' })).toBeInTheDocument();
+    expect(pageSignal?.aborted).toBe(true);
+    await act(async () => {
+      finishPage(failed ? new Response('', { status: 503 }) : json({ items: [article('old', 'Stale story')], nextCursor: null }));
+    });
+    expect(screen.queryByRole('link', { name: 'Stale story' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Load more stories' })).toBeEnabled();
+  });
+
+  it('aborts pending pagination when the page unmounts', async () => {
+    mockApi((url) => url.searchParams.has('cursor') ? new Promise(() => {})
+      : json({ items: [article('1', 'First story')], nextCursor: 'next' }));
+    const view = render(<NewsPage />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Load more stories' }));
+    const signal = vi.mocked(fetch).mock.calls.find(([url]) => String(url).includes('cursor='))?.[1]?.signal;
+    view.unmount();
+    expect(signal?.aborted).toBe(true);
+  });
 });

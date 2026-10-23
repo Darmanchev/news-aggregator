@@ -3,7 +3,7 @@ import type { Item } from 'rss-parser';
 import type { ArticleInput } from '../articles/articles.model.js';
 import { sources } from '../sources/sources.config.js';
 import { normalizePreview } from './article.normalizer.js';
-import { readBoundedResponse } from './rss.client.js';
+import { readBoundedResponse } from '../../infrastructure/http.js';
 
 export async function fetchArticlePreview(article: ArticleInput, item: Item, fetcher: typeof fetch = fetch): Promise<ArticleInput['preview']> {
   // Actualno permits the photo supplied through RSS, with its feed attribution.

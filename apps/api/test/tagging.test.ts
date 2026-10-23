@@ -60,6 +60,13 @@ describe('Bulgarian headline tagging', () => {
     expect(assignTags('МИНИСТЕРСКИЯТ\n  СЪВЕТ обсъди БЮДЖЕТА в СОФИЯ.')).toEqual(['sofia', 'politics', 'economy']);
   });
 
+  it('returns the same ordered, distinct topics across repeated calls', () => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      expect(assignTags('София, София: избори и бюджет')).toEqual(['sofia', 'politics', 'economy']);
+      expect(assignTags('Без съвпадение')).toEqual([]);
+    }
+  });
+
   it.each([
     'Софиански коментира събитията',
     'Суперконцертът ще започне утре',

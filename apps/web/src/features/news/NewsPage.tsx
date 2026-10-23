@@ -15,7 +15,6 @@ export function NewsPage() {
   const [optionsError, setOptionsError] = useState(false);
   const [retry, setRetry] = useState(0);
   const pageRequest = useRef<AbortController | null>(null);
-  const generation = useRef(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -30,7 +29,6 @@ export function NewsPage() {
     const controller = new AbortController();
     pageRequest.current?.abort();
     pageRequest.current = controller;
-    generation.current++;
     setArticles([]);
     setNextCursor(null);
     setLoading(true);
@@ -49,19 +47,18 @@ export function NewsPage() {
     if (!nextCursor || loadingMore) return;
     const controller = new AbortController();
     pageRequest.current = controller;
-    const requestedGeneration = generation.current;
     setLoadingMore(true);
     setError(false);
     try {
       const page = await fetchArticles(filters, controller.signal, nextCursor);
-      if (controller.signal.aborted || requestedGeneration !== generation.current) return;
+      if (controller.signal.aborted) return;
       setArticles((previous) => {
         const ids = new Set(previous.map(({ id }) => id));
         return [...previous, ...page.items.filter(({ id }) => !ids.has(id))];
       });
       setNextCursor(page.nextCursor);
-    } catch { if (!controller.signal.aborted && requestedGeneration === generation.current) setError(true); }
-    finally { if (!controller.signal.aborted && requestedGeneration === generation.current) setLoadingMore(false); }
+    } catch { if (!controller.signal.aborted) setError(true); }
+    finally { if (!controller.signal.aborted) setLoadingMore(false); }
   }
 
   const refresh = () => setRetry((value) => value + 1);
