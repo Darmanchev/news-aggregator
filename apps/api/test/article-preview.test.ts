@@ -99,5 +99,6 @@ describe('stored and public photo previews', () => {
     const response = await request(createApp()).get('/api/articles?source=telegraph').expect(200);
     const article = response.body.items.find((row: { title: string }) => row.title === item.title);
     expect(article.preview).toBeNull();
+    expect(article.imageLabel).toBe('Телеграф');
   });
 });

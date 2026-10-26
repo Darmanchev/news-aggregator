@@ -66,9 +66,15 @@ it('limits excerpts to 500 characters and preserves keyboard topic navigation', 
 });
 
 it.each([preview, null])('shows the Telegraph name instead of a photo, with or without preview metadata (%s)', (value) => {
-  render(<NewsCard article={{ ...article, sourceId: 'telegraph', sourceName: 'Вестник Телеграф', preview: value }} tags={tags} onTag={() => {}} />);
+  render(<NewsCard article={{ ...article, sourceId: 'telegraph', sourceName: 'Вестник Телеграф', imageLabel: 'Телеграф', preview: value }} tags={tags} onTag={() => {}} />);
   expect(screen.getByText('Телеграф')).toHaveAttribute('lang', 'bg');
   expect(screen.queryByRole('presentation')).not.toBeInTheDocument();
   expect(screen.queryByText('No preview photo')).not.toBeInTheDocument();
   expect(screen.getByRole('link', { name: article.title })).toHaveAttribute('href', article.url);
+});
+
+it('uses the publisher label supplied by the API without hardcoded source IDs', () => {
+  render(<NewsCard article={{ ...article, imageLabel: 'Издател', preview }} tags={tags} onTag={() => {}} />);
+  expect(screen.getByText('Издател')).toHaveAttribute('lang', 'bg');
+  expect(screen.queryByRole('presentation')).not.toBeInTheDocument();
 });

@@ -10,14 +10,14 @@ function plainText(value: unknown): string {
 }
 
 export function normalizePreview(item: Item, sourceId: string): ArticleInput['preview'] {
-  const hosts = sources.find(({ id }) => id === sourceId)?.imageHosts;
-  if (!hosts || (item.enclosure && !['image/jpg', 'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'].includes(item.enclosure.type ?? ''))) return null;
+  const source = sources.find(({ id }) => id === sourceId);
+  if (!source?.imageHosts || (item.enclosure && !['image/jpg', 'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'].includes(item.enclosure.type ?? ''))) return null;
   // shortcut: embedded photos require a simple quoted <img src>, use an HTML parser if publisher markup changes.
   const embedded = item.content?.slice(0, 20_000).match(/<img\s+src\s*=\s*(["'])([^"'<>]+)\1\s*\/?>/i)?.[2];
   const imageUrl = item.enclosure?.url ?? (embedded ? decodeHTML(embedded) : undefined);
   const author = plainText(item.creator);
-  const excerpt = plainText(item.contentSnippet ?? item.content).slice(0, sourceId === 'actualno' ? 200 : 500);
-  if (sourceId === 'actualno' && (!author || !excerpt)) return null;
+  const excerpt = plainText(item.contentSnippet ?? item.content).slice(0, source.previewPolicy?.maxExcerptLength ?? 500);
+  if (source.previewPolicy?.requireAttribution && (!author || !excerpt)) return null;
   if (author.length > 200 || typeof imageUrl !== 'string' || imageUrl.length > 2048) return null;
   try {
     const image = new URL(imageUrl);
@@ -47,7 +47,7 @@ export function normalizeArticle(item: Item, sourceId: string, now: Date): Artic
 
   return {
     sourceId, externalId, title, url: url.href,
-    publishedAt: Number.isFinite(date.getTime()) ? date : now,
+    publishedAt: Number.isFinite(date.getTime()) && date <= now ? date : now,
     tags: assignTags(`${title} ${plainText(item.contentSnippet ?? item.content)}`),
     ...(preview ? { preview } : {}),
   };

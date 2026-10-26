@@ -32,6 +32,12 @@ describe('article normalization', () => {
     const result = normalizeArticle({ title: '<b>София</b> &amp; новини', link: 'https://example.com/2', pubDate: 'invalid' }, source.id, now);
     expect(result).toMatchObject({ externalId: 'https://example.com/2', title: 'София & новини', publishedAt: now });
   });
+  it.each(['2099-01-01T00:00:00.000Z', '2026-10-20T12:00:00.001Z'])('uses collection time for future publication dates: %s', (pubDate) => {
+    expect(normalizeArticle({ ...item, pubDate }, source.id, now)?.publishedAt).toEqual(now);
+  });
+  it('keeps a publication date equal to the collection time', () => {
+    expect(normalizeArticle({ ...item, pubDate: now.toISOString() }, source.id, now)?.publishedAt).toEqual(now);
+  });
   it('uses first-seen time for timezone-free feed dates even when the parser supplies an ISO date', async () => {
     const feed = await fetchFeed('https://telegraph.bg/rss', async () => new Response(
       '<rss version="2.0"><channel><title>Fixture</title><item><guid>telegraph-1</guid><title>Новини от София</title><link>https://telegraph.bg/novini/1</link><pubDate>2026-10-21 14:38:44</pubDate></item></channel></rss>',
@@ -55,6 +61,30 @@ describe('article normalization', () => {
 });
 
 describe('RSS request boundary', () => {
+  it('cancels the body of a failed HTTP response', async () => {
+    let cancelled = false;
+    const response = new Response(new ReadableStream({ cancel() { cancelled = true; } }), { status: 503 });
+    await expect(fetchFeed(source.feedUrl, async () => response)).rejects.toThrow('503');
+    expect(cancelled).toBe(true);
+  });
+  it('rejects an already cancelled feed request before fetching', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    let requested = false;
+    await expect(fetchFeed(source.feedUrl, async () => {
+      requested = true;
+      return new Response('');
+    }, controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
+    expect(requested).toBe(false);
+  });
+  it('cancels an in-flight feed request when the worker stops', async () => {
+    const controller = new AbortController();
+    const pending = fetchFeed(source.feedUrl, async (_url, init) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true });
+    }), controller.signal);
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+  });
   it('parses XML from a successful response', async () => {
     const feed = await fetchFeed(source.feedUrl, async () => new Response('<rss version="2.0"><channel><title>Fixture</title><item><guid>1</guid><title>София</title><link>https://example.com/1</link></item></channel></rss>'));
     expect(feed.items[0]).toMatchObject({ guid: '1', title: 'София' });

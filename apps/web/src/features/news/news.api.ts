@@ -6,6 +6,7 @@ export interface Article {
   publishedAt: string;
   sourceId: string;
   sourceName: string;
+  imageLabel?: string | null;
   tags: string[];
   preview?: { imageUrl: string; author: string; excerpt: string } | null;
 }

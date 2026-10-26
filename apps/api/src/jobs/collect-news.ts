@@ -16,10 +16,10 @@ try {
     console.error('Collection email alerts disabled: check RESEND_API_KEY, ALERT_EMAIL_FROM and ALERT_EMAIL_TO.');
   }
   const collect = async () => {
-    const report = await collectSources(sources);
+    const report = await collectSources(sources, { signal: controller.signal });
     console.log(JSON.stringify({ collectedAt: new Date().toISOString(), ...report }));
     if (report.failed.length && !watch) process.exitCode = 1;
-    await sendCollectionAlerts(sources, alertConfig);
+    if (!controller.signal.aborted) await sendCollectionAlerts(sources, alertConfig);
   };
   if (watch) await runCollectionSchedule(collect, controller.signal);
   else await collect();

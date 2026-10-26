@@ -3,6 +3,14 @@ import { fetchArticlePreview } from '../src/modules/ingestion/article-metadata.c
 const article = { sourceId: 'mediapool', externalId: '1', title: 'Новина', url: 'https://www.mediapool.bg/news/story/', publishedAt: new Date(), tags: [] };
 const html = `<html><head><meta content='/photo.jpg?a=1&amp;b=2' property='og:image'><meta name="description" content="Кратък &amp; анонс."><meta content="Автор" name="author"></head></html>`;
 describe('publisher article photo metadata', () => {
+  it('cancels an in-flight metadata request when the worker stops', async () => {
+    const controller = new AbortController();
+    const pending = fetchArticlePreview(article, {}, async (_url, init) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true });
+    }), controller.signal);
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+  });
   it('reads quoted metadata in either order, resolves URLs and decodes entities', async () => {
     expect(await fetchArticlePreview(article, {}, async () => new Response(html))).toEqual({ imageUrl: 'https://www.mediapool.bg/photo.jpg?a=1&b=2', author: 'Автор', excerpt: 'Кратък & анонс.' });
   });

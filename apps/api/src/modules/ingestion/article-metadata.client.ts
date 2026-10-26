@@ -5,17 +5,20 @@ import { sources } from '../sources/sources.config.js';
 import { normalizePreview } from './article.normalizer.js';
 import { readBoundedResponse } from '../../infrastructure/http.js';
 
-export async function fetchArticlePreview(article: ArticleInput, item: Item, fetcher: typeof fetch = fetch): Promise<ArticleInput['preview']> {
-  // Actualno permits the photo supplied through RSS, with its feed attribution.
-  if (article.sourceId === 'actualno') return null;
+export async function fetchArticlePreview(
+  article: ArticleInput, item: Item, fetcher: typeof fetch = fetch, parentSignal?: AbortSignal,
+): Promise<ArticleInput['preview']> {
+  parentSignal?.throwIfAborted();
   const source = sources.find(({ id }) => id === article.sourceId);
+  if (source?.previewPolicy?.feedOnly) return null;
   let url = new URL(article.url);
   const publisherHost = source && new URL(source.feedUrl).hostname;
   const allowed = (candidate: URL) => !!source?.imageHosts && candidate.protocol === 'https:'
     && !candidate.username && !candidate.password && !candidate.port
     && [publisherHost, publisherHost?.replace(/^feed\./, ''), publisherHost?.replace(/^www\./, '')].includes(candidate.hostname);
   if (!allowed(url)) return null;
-  const signal = AbortSignal.timeout(10_000);
+  const timeout = AbortSignal.timeout(10_000);
+  const signal = parentSignal ? AbortSignal.any([parentSignal, timeout]) : timeout;
   let response: Response;
   for (let redirects = 0; ; redirects++) {
     response = await fetcher(url.href, {

@@ -15,7 +15,7 @@ npm run db:up
 npm run dev
 ```
 
-Open **http://localhost:5173**. The API runs at **http://127.0.0.1:3000**. Development starts the frontend, API, and a separate collector process. The collector runs immediately, then waits five minutes after each completed run before collecting again. Refresh the website to see newly collected articles. Stop the processes with Ctrl+C.
+Open **http://localhost:5173**. The API runs at **http://127.0.0.1:3000**. Development starts the frontend, API, and a separate collector process. The collector runs immediately, then waits five minutes after each completed run before collecting again. Refresh the website to see newly collected articles. Stop the processes with Ctrl+C. Worker shutdown cancels active RSS and preview requests and stops before the next article/source; an in-progress database operation is allowed to finish. Shutdown is not recorded as a publisher outage.
 
 To collect once manually:
 
@@ -50,7 +50,7 @@ No subscription or API key is required for the enabled news feeds. There are no 
 apps/
   api/src/
     modules/
-      articles/       Article model, queries, validation, routes, controller
+      articles/       Article model, queries, validation and HTTP routes
       sources/        Trusted feeds, source status, and public source list
       ingestion/      RSS network boundary, normalization, import orchestration
       tagging/        Bulgarian keyword rules and matching
@@ -64,9 +64,9 @@ apps/
     app/              React entry component
 ```
 
-The backend accesses MongoDB; the browser accesses only `/api`. Controllers handle HTTP, services implement behavior, and the RSS client handles external feed requests. The collector uses the articles service rather than duplicating persistence logic. Both processes use the same backend package and database; no network communication between services is required.
+The backend accesses MongoDB; the browser accesses only `/api`. Route handlers handle HTTP, services implement behavior, and the RSS client handles external feed requests. The collector uses the articles service rather than duplicating persistence logic. Both processes use the same backend package and database; no network communication between services is required.
 
-The frontend keeps article loading, pagination, and cancellation in `useNewsFeed`; `NewsPage` composes the reading interface and filters. During collection, an individual article error does not abandon later entries. A partially failed source preserves its previous success timestamp and reports the failed article count plus the first error. `processed` counts successful saves, including existing articles; it is not a count of newly inserted stories.
+The frontend keeps article loading, pagination, and cancellation in `useNewsFeed`; `NewsPage` composes the reading interface and filters. Retrying the filter lists preserves loaded news pages; refreshing news does not reload the lists. `collectSources` combines reports while `collectSource` handles one publisher. During collection, an individual article error does not abandon later entries. A partially failed source preserves its previous success timestamp and reports the failed article count plus the first error. `processed` counts successful saves, including existing articles; it is not a count of newly inserted stories.
 
 ## Sources and content rights
 
@@ -97,6 +97,8 @@ Mediapool returned 10 recent items during its initial verification; Telegraph re
 
 DarikNews and Kaldata currently show headlines without photos. Actualno uses only its RSS photo and a 200-character excerpt with supplied author credit. Telegraph displays a text name panel instead of its stored photo. For other sources, the collector first uses the publisher’s RSS image: OFFNews enclosures, Дневник embedded images, and Telegraph’s `image/jpg` enclosures. If RSS supplies no usable preview, it reads the original article’s Open Graph/Twitter image and description metadata. Mediapool currently needs this fallback. Authors and excerpts are retained when supplied; neither is invented when missing. Excerpts are plain text and limited to 500 characters.
 
+These publisher-specific rules live in `sources.config.ts` under `previewPolicy`: excerpt limit, required attribution, feed-only photo use, and a publisher label to display instead of an image. The API supplies that label as `imageLabel`; the card does not check publisher IDs.
+
 Requests are sequential, limited to 10 seconds and 2 MB per article page, and follow at most three redirects after validating every destination against the publisher host list. Only the configured publisher’s exact HTTPS hosts may be requested. Image URLs must match the source’s configured HTTPS image hosts; the browser policy uses the same list. Full article text is not stored. Image files load directly from the publisher without a referrer; they are not downloaded or cached by the server.
 
 Existing valid previews are reused when RSS omits them, avoiding repeat page requests every five minutes. Metadata failures do not stop headline collection. Missing previews are retried during later collections. A publisher may omit a photo, block hotlinking, or remove an image; those cards retain a readable fallback. Saved image URLs are not continuously checked for availability.
@@ -119,6 +121,8 @@ Edit `apps/api/src/modules/tagging/tagging.rules.ts` to change approved tags and
 
 Article identity is `(sourceId, externalId)`, using the feed GUID or URL. Only `utm_*` tracking parameters and URL fragments are removed. First-seen time and the initial publication/fallback date are preserved on subsequent imports; titles, URLs, and tags can update. Articles from different publishers about the same event remain separate.
 
+Invalid publication dates, recognized dates without a timezone, and dates later than the collection start use the collection time instead. No clock-skew allowance is guessed. This prevents newly imported future-dated stories from staying above real news. Existing stored dates are not rewritten automatically; already imported erroneous dates require a separate, reviewed data correction.
+
 ## API
 
 | Endpoint | Response |
@@ -129,7 +133,7 @@ Article identity is `(sourceId, externalId)`, using the feed GUID or URL. Only `
 | `GET /api/tags` | `{ items: [{ id, name }] }` |
 | `GET /api/articles` | `{ items: [...], nextCursor: string \| null }` |
 
-Articles accept optional `source`, `tag`, `q`, `cursor`, and `limit` query parameters. The default page size is 20 and maximum is 50. Pass `nextCursor` back unchanged for the next page. Invalid or unknown parameters return 400. API errors use `{ error: { code, message } }`. Article responses include `id`, `title`, `url`, `publishedAt`, `tags`, `sourceId`, `sourceName`, and `preview`. A preview is either `null` or `{ imageUrl, author, excerpt }`. Older stored articles remain readable without previews.
+Articles accept optional `source`, `tag`, `q`, `cursor`, and `limit` query parameters. The default page size is 20 and maximum is 50. Pass `nextCursor` back unchanged for the next page. Invalid or unknown parameters return 400. API errors use `{ error: { code, message } }`. Article responses include `id`, `title`, `url`, `publishedAt`, `tags`, `sourceId`, `sourceName`, `imageLabel`, and `preview`. `imageLabel` is a publisher name panel string, or `null` when the normal photo/fallback should be shown. A preview is either `null` or `{ imageUrl, author, excerpt }`. Older stored articles remain readable without previews.
 
 `q` searches titles by literal, case-insensitive substring, including Cyrillic. It is limited to 100 characters; control characters and repeated query parameters are rejected. Blank search acts like no search. Punctuation is treated literally rather than as a regular expression. Source, topic, search, and cursor can be combined. The page submits search on Enter or the Search button, and resets pagination when filters change. Search scans stored titles with the existing query timeout; add a search index if measured latency warrants it.
 

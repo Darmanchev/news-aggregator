@@ -14,6 +14,65 @@ const updated = { acknowledged: true, matchedCount: 1, modifiedCount: 1, upserte
 
 afterEach(() => { vi.restoreAllMocks(); });
 
+it('does not start a collection after cancellation', async () => {
+  const status = vi.spyOn(SourceStatus, 'updateOne').mockResolvedValue(updated);
+  const controller = new AbortController();
+  controller.abort();
+  const loadFeed = vi.fn(async () => ({ items: [] }));
+  const report = await collectSources([source], { signal: controller.signal, loadFeed });
+  expect(report).toEqual({ processed: 0, skipped: 0, failed: [] });
+  expect(status).not.toHaveBeenCalled();
+  expect(loadFeed).not.toHaveBeenCalled();
+});
+
+it('stops during preview loading without saving the article or reporting a source outage', async () => {
+  vi.spyOn(Query.prototype, 'exec').mockResolvedValue(null);
+  const save = vi.spyOn(Article, 'updateOne').mockResolvedValue(updated);
+  const status = vi.spyOn(SourceStatus, 'updateOne').mockResolvedValue(updated);
+  const controller = new AbortController();
+  const report = await collectSources([source, { ...source, id: 'later' }], {
+    now, signal: controller.signal,
+    loadFeed: async () => ({ items: [{ ...item, enclosure: undefined }, { ...item, guid: 'later' }] }),
+    loadPreview: async (_article, _item, signal) => {
+      expect(signal).toBe(controller.signal);
+      controller.abort();
+      signal?.throwIfAborted();
+      return null;
+    },
+  });
+  expect(report).toEqual({ processed: 0, skipped: 0, failed: [] });
+  expect(save).not.toHaveBeenCalled();
+  expect(status).toHaveBeenCalledExactlyOnceWith({ _id: 'offnews' }, { $set: { lastAttemptAt: now } },
+    { upsert: true, runValidators: true });
+});
+
+it('does not mark an empty feed successful after cancellation', async () => {
+  const status = vi.spyOn(SourceStatus, 'updateOne').mockResolvedValue(updated);
+  const controller = new AbortController();
+  const report = await collectSources([source], {
+    now, signal: controller.signal,
+    loadFeed: async () => { controller.abort(); return { items: [] }; },
+  });
+  expect(report).toEqual({ processed: 0, skipped: 0, failed: [] });
+  expect(status).toHaveBeenCalledExactlyOnceWith({ _id: 'offnews' }, { $set: { lastAttemptAt: now } },
+    { upsert: true, runValidators: true });
+});
+
+it('keeps the count of saved articles when cancellation interrupts a later article', async () => {
+  vi.spyOn(Query.prototype, 'exec').mockResolvedValue(null);
+  const save = vi.spyOn(Article, 'updateOne').mockResolvedValue(updated);
+  vi.spyOn(SourceStatus, 'updateOne').mockResolvedValue(updated);
+  const controller = new AbortController();
+  const report = await collectSources([source], {
+    now, signal: controller.signal,
+    loadFeed: async () => ({ items: [item, { ...item, guid: 'cancelled', enclosure: undefined }] }),
+    loadPreview: async () => { controller.abort(); controller.signal.throwIfAborted(); return null; },
+  });
+  expect(report).toEqual({ processed: 1, skipped: 0, failed: [] });
+  expect(save).toHaveBeenCalledExactlyOnceWith({ sourceId: 'offnews', externalId: 'broken' },
+    expect.anything(), expect.anything());
+});
+
 it('saves later articles after one persistence failure without marking the source successful', async () => {
   const save = vi.spyOn(Article, 'updateOne').mockResolvedValue(updated)
     .mockImplementationOnce(() => { throw new Error('Write failed'); });

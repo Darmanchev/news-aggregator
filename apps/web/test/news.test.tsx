@@ -21,6 +21,32 @@ function mockApi(articles: (url: URL) => Response | Promise<Response>) {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe('news feed', () => {
+  it('retries filters without losing loaded pages and refreshes news without reloading options', async () => {
+    let optionsFailed = true;
+    let optionRequests = 0;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = new URL(String(input), 'http://localhost');
+      if (url.pathname === '/api/sources' || url.pathname === '/api/tags') {
+        optionRequests++;
+        return optionsFailed ? new Response('', { status: 503 }) : json({ items: [] });
+      }
+      return url.searchParams.has('cursor')
+        ? json({ items: [article('2', 'Second story')], nextCursor: null })
+        : json({ items: [article('1', 'First story')], nextCursor: 'next' });
+    });
+    render(<NewsPage />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Load more stories' }));
+    expect(await screen.findByRole('link', { name: 'Second story' })).toBeInTheDocument();
+    optionsFailed = false;
+    await userEvent.click(screen.getByRole('button', { name: 'Retry filters' }));
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+    expect(screen.getByRole('link', { name: 'Second story' })).toBeInTheDocument();
+    const requestsAfterRetry = optionRequests;
+    await userEvent.click(screen.getByRole('button', { name: /Refresh news/ }));
+    expect(await screen.findByRole('link', { name: 'First story' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Second story' })).not.toBeInTheDocument();
+    expect(optionRequests).toBe(requestsAfterRetry);
+  });
   it('renders the publisher article as a usable external link', async () => {
     mockApi(() => json({ items: [article('1', 'Новини от София')], nextCursor: null }));
     render(<NewsPage />);

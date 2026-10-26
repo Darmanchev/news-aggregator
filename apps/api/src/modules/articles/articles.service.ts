@@ -31,13 +31,17 @@ export async function listArticles(query: ArticleQuery) {
   const page = rows.slice(0, query.limit);
   const last = page.at(-1);
   return {
-    items: page.map((article) => ({
-      id: article._id.toString(), title: article.title, url: article.url,
-      publishedAt: article.publishedAt.toISOString(), tags: article.tags,
-      sourceId: article.sourceId,
-      sourceName: sources.find(({ id }) => id === article.sourceId)?.name ?? article.sourceId,
-      preview: article.preview && isSourceImageUrl(article.preview.imageUrl, article.sourceId) ? article.preview : null,
-    })),
+    items: page.map((article) => {
+      const source = sources.find(({ id }) => id === article.sourceId);
+      return {
+        id: article._id.toString(), title: article.title, url: article.url,
+        publishedAt: article.publishedAt.toISOString(), tags: article.tags,
+        sourceId: article.sourceId,
+        sourceName: source?.name ?? article.sourceId,
+        imageLabel: source?.previewPolicy?.imageLabel ?? null,
+        preview: article.preview && isSourceImageUrl(article.preview.imageUrl, article.sourceId) ? article.preview : null,
+      };
+    }),
     nextCursor: rows.length > query.limit && last
       ? Buffer.from(JSON.stringify({ date: last.publishedAt.toISOString(), id: last._id.toString() })).toString('base64url')
       : null,
