@@ -9,6 +9,11 @@ function plainText(value: unknown): string {
   return decodeHTML(value.slice(0, 20_000).replace(/<[^>]*>/g, ' ')).replace(/\s+/gu, ' ').trim();
 }
 
+export function articleExcerpt(item: Item, sourceId: string): string {
+  const limit = sources.find((source) => source.id === sourceId)?.previewPolicy?.maxExcerptLength ?? 500;
+  return plainText(item.contentSnippet ?? item.content).slice(0, limit);
+}
+
 export function normalizePreview(item: Item, sourceId: string): ArticleInput['preview'] {
   const source = sources.find(({ id }) => id === sourceId);
   if (!source?.imageHosts || (item.enclosure && !['image/jpg', 'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'].includes(item.enclosure.type ?? ''))) return null;
@@ -16,7 +21,7 @@ export function normalizePreview(item: Item, sourceId: string): ArticleInput['pr
   const embedded = item.content?.slice(0, 20_000).match(/<img\s+src\s*=\s*(["'])([^"'<>]+)\1\s*\/?>/i)?.[2];
   const imageUrl = item.enclosure?.url ?? (embedded ? decodeHTML(embedded) : undefined);
   const author = plainText(item.creator);
-  const excerpt = plainText(item.contentSnippet ?? item.content).slice(0, source.previewPolicy?.maxExcerptLength ?? 500);
+  const excerpt = articleExcerpt(item, sourceId);
   if (source.previewPolicy?.requireAttribution && (!author || !excerpt)) return null;
   if (author.length > 200 || typeof imageUrl !== 'string' || imageUrl.length > 2048) return null;
   try {
@@ -48,7 +53,7 @@ export function normalizeArticle(item: Item, sourceId: string, now: Date): Artic
   return {
     sourceId, externalId, title, url: url.href,
     publishedAt: Number.isFinite(date.getTime()) && date <= now ? date : now,
-    tags: assignTags(`${title} ${plainText(item.contentSnippet ?? item.content)}`),
+    tags: assignTags(`${title} ${articleExcerpt(item, sourceId)}`, Array.isArray(item.categories) ? item.categories.filter((value) => typeof value === 'string').slice(0, 50) : []),
     ...(preview ? { preview } : {}),
   };
 }

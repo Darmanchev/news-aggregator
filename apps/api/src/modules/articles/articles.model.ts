@@ -1,5 +1,7 @@
 import { Schema, model } from 'mongoose';
 
+export interface TagClassification { version: string; inputHash: string; tags: string[] }
+
 export interface ArticleInput {
   sourceId: string;
   externalId: string;
@@ -7,6 +9,7 @@ export interface ArticleInput {
   url: string;
   publishedAt: Date;
   tags: string[];
+  classification?: TagClassification;
   preview?: { imageUrl: string; author: string; excerpt: string } | null;
 }
 
@@ -18,6 +21,11 @@ const articleSchema = new Schema<ArticleInput & { firstSeenAt: Date }>({
   publishedAt: { type: Date, required: true },
   firstSeenAt: { type: Date, required: true },
   tags: [{ type: String }],
+  classification: { type: new Schema({
+    version: { type: String, required: true, maxlength: 128 },
+    inputHash: { type: String, required: true, maxlength: 64 },
+    tags: [{ type: String }],
+  }, { _id: false }), default: undefined },
   preview: { type: new Schema({
     imageUrl: { type: String, required: true, maxlength: 2048 },
     author: { type: String, default: '', maxlength: 200 },

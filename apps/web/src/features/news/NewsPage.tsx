@@ -139,7 +139,7 @@ export function NewsPage() {
               <div className="aside-divider" />
               <h3>A note on topics</h3>
               <p className="aside-small">
-                Topics are assigned automatically using Bulgarian keywords.
+                Topics are assigned automatically from publisher categories and text.
                 Some stories may have no topic or an imperfect match.
               </p>
             </aside>
@@ -149,6 +149,8 @@ export function NewsPage() {
           <span>THE BULGARIAN BRIEF</span>
           <span>
             Headlines belong to their publishers. Read at the source. <span aria-hidden="true">↗</span>
+            {' '}Topics adapted from <a href="https://iptc.org/standards/media-topics/" target="_blank" rel="noopener noreferrer">IPTC Media Topics</a> under{' '}
+            <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>.
           </span>
         </footer>
       </div>

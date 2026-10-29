@@ -1,4 +1,4 @@
-export interface Option { id: string; name: string }
+export interface Option { id: string; name: string; parentId?: string }
 export interface Article {
   id: string;
   title: string;

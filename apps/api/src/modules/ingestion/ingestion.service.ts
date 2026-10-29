@@ -3,7 +3,9 @@ import type { Source } from '../sources/sources.config.js';
 import type { ArticleInput } from '../articles/articles.model.js';
 import { fetchArticlePreview } from './article-metadata.client.js';
 import { findArticlePreview, saveArticle } from '../articles/articles.service.js';
-import { normalizeArticle } from './article.normalizer.js';
+import { articleExcerpt, normalizeArticle } from './article.normalizer.js';
+import type { TagClassifier } from '../tagging/tagging.client.js';
+import { classifyArticleTags } from '../tagging/tagging.classification.js';
 import { fetchFeed } from './rss.client.js';
 import { recordCollectionAttempt, recordCollectionFailure, recordCollectionSuccess } from '../sources/sources.service.js';
 
@@ -12,14 +14,16 @@ interface CollectionOptions {
   loadPreview?: (article: ArticleInput, item: Item, signal?: AbortSignal) => Promise<ArticleInput['preview']>;
   now?: Date;
   signal?: AbortSignal;
+  classifier?: TagClassifier;
 }
 
 export async function collectSources(sources: Source[], options: CollectionOptions = {}) {
   const report = { processed: 0, skipped: 0, failed: [] as { sourceId: string; message: string }[] };
   const now = options.now ?? new Date();
+  const tagging = { classifier: options.classifier };
   for (const source of sources) {
     if (options.signal?.aborted) break;
-    const result = await collectSource(source, { ...options, now });
+    const result = await collectSource(source, { ...options, now }, tagging);
     report.processed += result.processed;
     report.skipped += result.skipped;
     if (result.error !== null) report.failed.push({ sourceId: source.id, message: result.error });
@@ -31,7 +35,7 @@ async function collectSource(source: Source, {
   loadFeed = (url, signal) => fetchFeed(url, fetch, signal),
   loadPreview = (article, item, signal) => fetchArticlePreview(article, item, fetch, signal),
   now = new Date(), signal,
-}: CollectionOptions) {
+}: CollectionOptions, tagging: { classifier: TagClassifier | undefined }) {
   const result = { processed: 0, skipped: 0, error: null as string | null };
   try {
     await recordCollectionAttempt(source.id, now);
@@ -45,6 +49,14 @@ async function collectSource(source: Source, {
         const article = normalizeArticle(item, source.id, now);
         if (!article) { result.skipped++; continue; }
         await enrichArticlePreview(article, item, loadPreview, signal);
+        if (tagging.classifier) {
+          try { await classifyArticleTags(article, articleExcerpt(item, source.id), tagging.classifier, signal); }
+          catch {
+            signal?.throwIfAborted();
+            tagging.classifier = undefined;
+            console.error('AI tagging unavailable; using keyword rules for the rest of this collection.');
+          }
+        }
         signal?.throwIfAborted();
         await saveArticle(article, now);
         result.processed++;

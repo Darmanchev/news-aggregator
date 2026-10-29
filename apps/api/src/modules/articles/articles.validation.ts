@@ -1,6 +1,6 @@
 import { Types } from 'mongoose';
 import { sources } from '../sources/sources.config.js';
-import { tagRules } from '../tagging/tagging.rules.js';
+import { isTagId } from '../tagging/tagging.service.js';
 import { HttpError } from '../../middleware/error-handler.js';
 
 export interface ArticleQuery {
@@ -23,7 +23,7 @@ export function parseArticleQuery(query: Record<string, unknown>): ArticleQuery 
   const { source, tag, cursor, q, limit = '20' } = query as Record<string, string>;
   if (!/^\d{1,2}$/.test(limit) || Number(limit) < 1 || Number(limit) > 50) invalid();
   if (source !== undefined && !sources.some(({ id }) => id === source)) invalid();
-  if (tag !== undefined && !tagRules.some(({ id }) => id === tag)) invalid();
+  if (tag !== undefined && !isTagId(tag)) invalid();
   if (q !== undefined && (q.length > 100 || /[\u0000-\u001f\u007f]/u.test(q))) invalid();
 
   const result: ArticleQuery = { source, tag, q: q?.normalize('NFC').trim(), limit: Number(limit) };

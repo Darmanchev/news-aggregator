@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { assignTags } from '../src/modules/tagging/tagging.service.js';
 
 describe('Bulgarian headline tagging', () => {
+  it('assigns specific IPTC subjects and their ancestors for new topics', () => {
+    expect(assignTags('Киберсигурност и изкуствен интелект')).toEqual(expect.arrayContaining(['medtop:13000000']));
+    expect(assignTags('Избори за парламент')).toEqual(expect.arrayContaining(['medtop:11000000', 'medtop:20000574']));
+  });
+  it('maps publisher RSS categories to controlled topics without creating arbitrary tags', () => {
+    expect(assignTags('', ['Technology', 'SPORTS', 'Политика', 'unknown-source-tag'])).toEqual(expect.arrayContaining(['medtop:13000000', 'medtop:15000000', 'medtop:11000000']));
+    expect(assignTags('', ['unknown-source-tag'])).toEqual([]);
+  });
   it.each([
     ['Столичната община ремонтира улици', ['sofia']],
     ['Изборите ще бъдат през юни', ['politics']],
@@ -53,16 +61,16 @@ describe('Bulgarian headline tagging', () => {
     ['Нови изложби през есента', ['culture']],
     ['Изложбите остават отворени до неделя', ['culture']],
   ])('assigns the topic for %s', (headline, expected) => {
-    expect(assignTags(headline)).toEqual(expected);
+    expect(assignTags(headline).filter((id) => !id.startsWith('medtop:'))).toEqual(expected);
   });
 
   it('normalizes case and phrase whitespace while keeping distinct topics', () => {
-    expect(assignTags('МИНИСТЕРСКИЯТ\n  СЪВЕТ обсъди БЮДЖЕТА в СОФИЯ.')).toEqual(['sofia', 'politics', 'economy']);
+    expect(assignTags('МИНИСТЕРСКИЯТ\n  СЪВЕТ обсъди БЮДЖЕТА в СОФИЯ.').filter((id) => !id.startsWith('medtop:'))).toEqual(['sofia', 'politics', 'economy']);
   });
 
   it('returns the same ordered, distinct topics across repeated calls', () => {
     for (let attempt = 0; attempt < 3; attempt++) {
-      expect(assignTags('София, София: избори и бюджет')).toEqual(['sofia', 'politics', 'economy']);
+      expect(assignTags('София, София: избори и бюджет').filter((id) => !id.startsWith('medtop:'))).toEqual(['sofia', 'politics', 'economy']);
       expect(assignTags('Без съвпадение')).toEqual([]);
     }
   });

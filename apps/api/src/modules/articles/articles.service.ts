@@ -1,6 +1,7 @@
 import { Article, type ArticleInput } from './articles.model.js';
 import { sources, isSourceImageUrl } from '../sources/sources.config.js';
 import type { ArticleQuery } from './articles.validation.js';
+import { expandTags, tagFilterIds } from '../tagging/tagging.service.js';
 
 export async function findArticlePreview(sourceId: string, externalId: string): Promise<ArticleInput['preview']> {
   const article = await Article.findOne({ sourceId, externalId }).select('preview').lean();
@@ -19,7 +20,7 @@ export async function saveArticle(article: ArticleInput, now: Date): Promise<voi
 export async function listArticles(query: ArticleQuery) {
   const filter = {
     sourceId: query.source ?? { $in: sources.map(({ id }) => id) },
-    ...(query.tag ? { tags: query.tag } : {}),
+    ...(query.tag ? { tags: { $in: tagFilterIds(query.tag) } } : {}),
     // shortcut: literal search scans titles, add a search index when measured latency requires it.
     ...(query.q ? { title: { $regex: query.q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } } : {}),
     ...(query.cursor ? { $or: [
@@ -35,7 +36,7 @@ export async function listArticles(query: ArticleQuery) {
       const source = sources.find(({ id }) => id === article.sourceId);
       return {
         id: article._id.toString(), title: article.title, url: article.url,
-        publishedAt: article.publishedAt.toISOString(), tags: article.tags,
+        publishedAt: article.publishedAt.toISOString(), tags: expandTags(article.tags),
         sourceId: article.sourceId,
         sourceName: source?.name ?? article.sourceId,
         imageLabel: source?.previewPolicy?.imageLabel ?? null,

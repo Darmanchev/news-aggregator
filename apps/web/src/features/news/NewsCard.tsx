@@ -8,6 +8,14 @@ const dateFormat = new Intl.DateTimeFormat('en-GB', {
 export function NewsCard({ article, tags, onTag }: { article: Article; tags: Option[]; onTag: (tag: string) => void }) {
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
   const { preview } = article;
+  const ancestorIds = new Set<string>();
+  for (const id of article.tags) {
+    let parent = tags.find((tag) => tag.id === id)?.parentId;
+    while (parent && !ancestorIds.has(parent)) {
+      ancestorIds.add(parent);
+      parent = tags.find((tag) => tag.id === parent)?.parentId;
+    }
+  }
 
   return (
     <article className="news-card">
@@ -46,7 +54,7 @@ export function NewsCard({ article, tags, onTag }: { article: Article; tags: Opt
         </div>
       )}
       <div className="tags">
-        {article.tags.map((tag) => (
+        {article.tags.filter((tag) => !ancestorIds.has(tag)).map((tag) => (
           <button className="tag" key={tag} onClick={() => onTag(tag)} lang="bg">
             #{tags.find(({ id }) => id === tag)?.name ?? tag}
           </button>

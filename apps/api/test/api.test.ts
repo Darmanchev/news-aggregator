@@ -39,6 +39,21 @@ describe('news API with MongoDB', () => {
     expect(response.body.items.map((article: { title: string }) => article.title)).toEqual(['First']);
   });
 
+  it('matches legacy politics and child-only articles through the canonical parent filter', async () => {
+    await Article.updateOne({ externalId: 'c' }, { $set: { tags: ['medtop:20000574'] } });
+    for (const tag of ['medtop:11000000', 'politics']) {
+      const response = await request(app).get('/api/articles').query({ source: 'mediapool', tag }).expect(200);
+      expect(response.body.items.map(({ title }: { title: string }) => title)).toEqual(['Second', 'Third']);
+    }
+  });
+
+  it('exposes a hierarchical IPTC catalog while retaining legacy geography', async () => {
+    const response = await request(app).get('/api/tags').expect(200);
+    expect(response.body.items).toContainEqual(expect.objectContaining({ id: 'medtop:20000574', name: 'Избори', parentId: 'medtop:11000000' }));
+    expect(response.body.items.filter((tag: { id: string; parentId?: string }) => tag.id.startsWith('medtop:') && !tag.parentId)).toHaveLength(17);
+    expect(response.body.items).toContainEqual({ id: 'sofia', name: 'София' });
+  });
+
   it('searches Bulgarian headlines case-insensitively with filters and cursor pagination', async () => {
     await Article.updateOne({ externalId: 'a' }, { $set: { title: 'Новини от София' } });
     await Article.updateOne({ externalId: 'b' }, { $set: { title: 'СОФИЯ: избори', tags: ['sofia'] } });

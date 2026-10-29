@@ -21,7 +21,8 @@
     "start": "npm run start -w @news/api",
     "db:up": "docker compose up -d --wait",
     "db:down": "docker compose down",
-    "photos:backfill": "npm run photos:backfill -w @news/api"
+    "photos:backfill": "npm run photos:backfill -w @news/api",
+    "tags:backfill": "npm run tags:backfill -w @news/api --"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

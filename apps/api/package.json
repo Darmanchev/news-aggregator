@@ -11,7 +11,8 @@
     "collect:prod": "node --env-file-if-exists=../../.env dist/jobs/collect-news.js",
     "worker": "node --env-file-if-exists=../../.env dist/jobs/collect-news.js --watch",
     "start": "node --env-file-if-exists=../../.env dist/server.js",
-    "photos:backfill": "tsx --env-file-if-exists=../../.env src/jobs/backfill-photos.ts"
+    "photos:backfill": "tsx --env-file-if-exists=../../.env src/jobs/backfill-photos.ts",
+    "tags:backfill": "node --import tsx --env-file-if-exists=../../.env src/jobs/backfill-tags.ts"
   },
   "dependencies": {
     "entities": "^7.0.1",

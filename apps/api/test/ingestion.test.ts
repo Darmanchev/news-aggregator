@@ -14,7 +14,7 @@ const item = { guid: 'story-1', title: 'Избори в София', link: 'http
 
 describe('Bulgarian tags', () => {
   it('matches Cyrillic words and phrases independent of case', () => {
-    expect(assignTags('ИЗБОРИ в София: Столична община')).toEqual(['sofia', 'politics']);
+    expect(assignTags('ИЗБОРИ в София: Столична община')).toEqual(expect.arrayContaining(['sofia', 'politics', 'medtop:20000574', 'medtop:11000000']));
   });
   it('does not match keywords inside other words', () => {
     expect(assignTags('Софиански направи изявление')).toEqual([]);
@@ -25,7 +25,7 @@ describe('article normalization', () => {
   it('keeps identifying URL parameters and assigns normalized metadata', () => {
     expect(normalizeArticle(item, source.id, now)).toEqual({
       sourceId: 'fixture', externalId: 'story-1', title: 'Избори в София',
-      url: 'https://example.com/story?id=7', publishedAt: new Date('2026-10-20T10:00:00Z'), tags: ['sofia', 'politics'],
+      url: 'https://example.com/story?id=7', publishedAt: new Date('2026-10-20T10:00:00Z'), tags: expect.arrayContaining(['sofia', 'politics', 'medtop:20000574', 'medtop:11000000']),
     });
   });
   it('strips feed markup and falls back to URL and first-seen time', () => {
@@ -159,6 +159,42 @@ describe('collection with MongoDB', () => {
     const articles = await Article.find({ sourceId: 'fixture' }).lean();
     expect(articles).toHaveLength(1);
     expect(articles[0]).toMatchObject({ firstSeenAt: now, publishedAt: now, title: item.title });
+  });
+
+  it('classifies RSS text without a photo once and invalidates the cache when text or classifier changes', async () => {
+    let calls = 0;
+    const classifier = { version: 'fixture-v1', classify: async (title: string, excerpt: string) => {
+      calls++;
+      expect(title).toBe(item.title);
+      expect(excerpt).toBe('Нов изкуствен интелект.');
+      return ['medtop:20001298'];
+    } };
+    const options = { now, classifier, loadFeed: async () => ({ items: [{ ...item, contentSnippet: '<b>Нов изкуствен интелект.</b>' }] }) };
+    await collectSources([source], options);
+    await collectSources([source], options);
+    expect(calls).toBe(1);
+    const saved = await Article.findOne({ sourceId: source.id, externalId: item.guid }).lean();
+    expect(saved?.tags).toEqual(expect.arrayContaining(['sofia', 'medtop:20001298', 'medtop:13000000']));
+    expect(saved?.tags).not.toContain('politics');
+    expect(saved?.classification).toMatchObject({ version: 'fixture-v1', tags: ['medtop:20001298'] });
+    await collectSources([source], { ...options, classifier: { ...classifier, version: 'fixture-v2' } });
+    expect(calls).toBe(2);
+    await collectSources([source], { ...options, loadFeed: async () => ({ items: [{ ...item, title: 'Друг текст' }] }), classifier: { version: 'fixture-v2', classify: async () => { calls++; return []; } } });
+    await collectSources([source], { ...options, loadFeed: async () => ({ items: [{ ...item, title: 'Друг текст' }] }), classifier: { version: 'fixture-v2', classify: async () => { throw new Error('Cached empty result should not call AI'); } } });
+    expect(calls).toBe(3);
+    expect((await Article.findOne({ sourceId: source.id }).lean())?.tags).toEqual([]);
+  });
+
+  it('uses fallback and stops further AI calls in a run after provider failure', async () => {
+    let calls = 0;
+    const report = await collectSources([source], {
+      now, loadFeed: async () => ({ items: [item, { ...item, guid: 'second' }] }),
+      classifier: { version: 'broken', classify: async () => { calls++; throw new Error('Provider down'); } },
+    });
+    expect(report.failed).toEqual([]);
+    expect(report.processed).toBe(2);
+    expect(calls).toBe(1);
+    expect((await Article.findOne({ sourceId: source.id }).lean())?.tags).toContain('politics');
   });
 
   it('continues after a source failure and preserves previously stored articles', async () => {
