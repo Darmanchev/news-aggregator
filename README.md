@@ -42,7 +42,7 @@ MongoDB 7 is used locally because MongoDB 8 refused startup on the current Docke
 - A new-stories notice checked every minute; loaded pages stay in place until the reader chooses to refresh.
 - Optional email alerts after 15 minutes of continued source failure, with one message per outage.
 
-No subscription or API key is required for the enabled news feeds. AI tagging is optional and disabled without a Qwen API key; there are no reader accounts, advertising, or stored full articles. Missing RSS photos are looked up in the original publisher page’s preview metadata. Publisher reuse conditions still apply; see below.
+No subscription or API key is required for the enabled news feeds. AI tagging is optional: use local LM Studio or a Qwen API key; there are no reader accounts, advertising, or stored full articles. Missing RSS photos are looked up in the original publisher page’s preview metadata. Publisher reuse conditions still apply; see below.
 
 ## Project layout
 
@@ -123,6 +123,22 @@ The topic selector groups descendants under their top-level subject. Broad filte
 
 Without AI, matching uses Bulgarian keywords in the headline and a bounded RSS excerpt, plus recognized RSS category labels. Rules live in `tagging.rules.ts` and `tagging.service.ts`; the catalog defines allowed IDs independently. Matching respects Unicode word boundaries and ignores case. It does not understand unlisted inflections, context or negation, and not every catalog topic has a complete Bulgarian keyword dictionary. Unrecognized publisher categories never create new tags. Tags update when an article next appears in a collected feed.
 
+### Optional local tagging with LM Studio
+
+Start LM Studio's local server with `qwen3-4b-instruct-2507` available and add to the root `.env`:
+
+```dotenv
+LM_STUDIO_MODEL=qwen3-4b-instruct-2507
+# Optional, defaults to this loopback endpoint:
+LM_STUDIO_BASE_URL=http://127.0.0.1:1234/v1
+```
+
+Copy the exact model ID from `http://127.0.0.1:1234/v1/models`. Restart the collector after changing settings. Local configuration takes precedence over Qwen; cloud credentials are never sent to LM Studio. Only loopback HTTP `/v1` endpoints are accepted. The collector must run on the same host as LM Studio; `127.0.0.1` inside a container refers to that container.
+
+Local requests use a compact catalog of topic IDs, English names and parent links, a JSON schema restricting output to allowed IDs, temperature 0 and a 60-second timeout. Start with an 8192-token context and verify the full request fits your model configuration; increasing context also increases memory use. Backend validation, cached classifications and keyword fallback remain active. Stop the worker before testing a bounded backfill with `npm run tags:backfill -- --limit=5`. Without a configured cloud key, no paid provider requests occur.
+
+The site reads stored tags, so visitors do not call the model. If LM Studio is unavailable, collection falls back to keyword rules for the rest of that run. Previously classified articles in that run may receive keyword tags again; their successful classification cache is retained and reused when the model returns. Local model quality must be checked on representative Bulgarian headlines.
+
 ### Optional Qwen tagging
 
 Set these only in the collector's environment or root `.env`:
@@ -141,7 +157,7 @@ MongoDB stores the successful classification's selected IDs, input hash and clas
 
 Qwen API usage is billed separately by the provider. The full 137-topic prompt is included on each request unless the provider applies caching, so do not assume the earlier illustrative 1,000-token estimate fits this catalog. Check actual token usage and provider billing limits before enabling collection. No live Qwen calls or paid backfills were run as part of implementation; Bulgarian classification quality has not yet been measured.
 
-For older records outside the RSS window, an **explicit paid** bounded backfill is available:
+For older records outside the RSS window, an **explicit bounded** backfill is available (paid when using Qwen):
 
 ```sh
 npm run tags:backfill -- --limit=100

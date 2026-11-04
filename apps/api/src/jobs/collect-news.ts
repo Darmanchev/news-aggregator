@@ -4,7 +4,7 @@ import { collectSources } from '../modules/ingestion/ingestion.service.js';
 import { sources } from '../modules/sources/sources.config.js';
 import { runCollectionSchedule } from './collection-schedule.js';
 import { readAlertConfig, sendCollectionAlerts } from './collection-alerts.js';
-import { createQwenClassifier, readTaggingConfig, type TagClassifier } from '../modules/tagging/tagging.client.js';
+import { createTagClassifier, readTaggingConfig, type TagClassifier } from '../modules/tagging/tagging.client.js';
 
 const watch = process.argv.includes('--watch');
 const controller = new AbortController();
@@ -15,8 +15,8 @@ try {
   let classifier: TagClassifier | undefined;
   try {
     const config = readTaggingConfig();
-    if (config) classifier = createQwenClassifier(config);
-  } catch { console.error('AI tagging disabled: check QWEN_API_KEY and QWEN_BASE_URL.'); }
+    if (config) classifier = createTagClassifier(config);
+  } catch { console.error('AI tagging disabled: check LM_STUDIO_MODEL/LM_STUDIO_BASE_URL or QWEN_API_KEY/QWEN_BASE_URL.'); }
   let alertConfig: ReturnType<typeof readAlertConfig> = null;
   try { alertConfig = readAlertConfig(); } catch {
     console.error('Collection email alerts disabled: check RESEND_API_KEY, ALERT_EMAIL_FROM and ALERT_EMAIL_TO.');
