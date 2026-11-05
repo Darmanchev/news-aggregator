@@ -1,12 +1,20 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { NewsFilters } from '../src/features/news/NewsFilters';
+import { TopicPanel } from '../src/features/news/TopicPanel';
+import { useState } from 'react';
 import { NewsCard } from '../src/features/news/NewsCard';
 
-afterEach(cleanup);
+beforeEach(() => {
+  const storage = new Map<string, string>();
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => storage.set(key, value),
+  });
+});
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const tags = [
   { id: 'medtop:15000000', name: 'Спорт' },
   { id: 'medtop:20000822', name: 'Състезателен спорт', parentId: 'medtop:15000000' },
@@ -14,31 +22,33 @@ const tags = [
   { id: 'sofia', name: 'София' },
 ];
 
-it('shows only broad topics first, then subtopics for the selected section', async () => {
-  const onChange = vi.fn();
-  const { rerender } = render(<NewsFilters sources={[]} tags={tags} filters={{ source: '', tag: '', q: '' }} onChange={onChange} />);
-  expect(within(screen.getByLabelText('Topic')).queryByRole('option', { name: /Футбол/ })).not.toBeInTheDocument();
-  expect(screen.queryByLabelText('Subtopic')).not.toBeInTheDocument();
-  await userEvent.selectOptions(screen.getByLabelText('Topic'), 'medtop:15000000');
-  expect(onChange).toHaveBeenLastCalledWith({ source: '', tag: 'medtop:15000000', q: '' });
-  rerender(<NewsFilters sources={[]} tags={tags} filters={{ source: '', tag: 'medtop:15000000', q: '' }} onChange={onChange} />);
-  expect(screen.getByLabelText('Subtopic')).toHaveValue('medtop:15000000');
-  await userEvent.selectOptions(screen.getByLabelText('Subtopic'), 'medtop:20001065');
-  expect(onChange).toHaveBeenLastCalledWith({ source: '', tag: 'medtop:20001065', q: '' });
+function Topics() {
+  const [selected, setSelected] = useState('');
+  return <TopicPanel tags={tags} selected={selected} onSelect={(id) => setSelected(id === selected ? '' : id)} />;
+}
+
+it('opens subtopics, filters by a chip and keeps geography separate', async () => {
+  render(<Topics />);
+  expect(screen.queryByRole('button', { name: 'Футбол' })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Спорт' }));
+  const football = screen.getByRole('button', { name: 'Футбол' });
+  await userEvent.click(football);
+  expect(football).toHaveAttribute('aria-pressed', 'true');
+  await userEvent.click(football);
+  expect(screen.getByRole('button', { name: 'All topics' })).toHaveAttribute('aria-pressed', 'true');
+  expect(within(screen.getByRole('group', { name: 'Geography' })).getByRole('button', { name: 'София' })).toBeInTheDocument();
 });
 
-it('derives the selected section from a deeply nested hashtag and keeps geography usable', async () => {
-  const onChange = vi.fn();
-  const { rerender } = render(<NewsFilters sources={[]} tags={tags} filters={{ source: 'fixture', tag: 'medtop:20001065', q: 'goal' }} onChange={onChange} />);
-  expect(screen.getByLabelText('Topic')).toHaveValue('medtop:15000000');
-  expect(screen.getByLabelText('Subtopic')).toHaveValue('medtop:20001065');
-  expect(within(screen.getByLabelText('Subtopic')).getByRole('option', { name: 'Състезателен спорт / Футбол' })).toBeInTheDocument();
-  await userEvent.selectOptions(screen.getByLabelText('Topic'), 'sofia');
-  expect(onChange).toHaveBeenLastCalledWith({ source: 'fixture', tag: 'sofia', q: 'goal' });
-  rerender(<NewsFilters sources={[]} tags={tags} filters={{ source: 'fixture', tag: 'sofia', q: 'goal' }} onChange={onChange} />);
-  expect(screen.queryByLabelText('Subtopic')).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: /Clear filters/ }));
-  expect(onChange).toHaveBeenLastCalledWith({ source: '', tag: '', q: '' });
+it('searches subtopics and restores favorites after remounting', async () => {
+  const { unmount } = render(<Topics />);
+  await userEvent.type(screen.getByRole('searchbox', { name: 'Find a topic' }), 'футбол');
+  await userEvent.click(screen.getByRole('button', { name: 'Favorite Футбол' }));
+  unmount();
+  render(<Topics />);
+  const favorites = screen.getByRole('group', { name: 'Favorite topics' });
+  const football = within(favorites).getByRole('button', { name: 'Футбол' });
+  await userEvent.click(football);
+  expect(football).toHaveAttribute('aria-pressed', 'true');
 });
 
 it('shows the specific hashtag without repeating its stored ancestors', () => {

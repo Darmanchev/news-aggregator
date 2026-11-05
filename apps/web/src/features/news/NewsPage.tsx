@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NewsCard } from './NewsCard';
 import { NewsFilters } from './NewsFilters';
+import { TopicPanel } from './TopicPanel';
 import { NewStoriesNotice } from './NewStoriesNotice';
 import { fetchOptions, type Filters, type Option } from './news.api';
 import { useNewsFeed } from './useNewsFeed';
@@ -26,6 +27,7 @@ export function NewsPage() {
     return () => controller.abort();
   }, [optionsRetryKey]);
 
+  const selectTag = (tag: string) => setFilters((current) => ({ ...current, tag: current.tag === tag ? '' : tag }));
   const refresh = () => setNewsRefreshKey((value) => value + 1);
   const retryOptions = () => setOptionsRetryKey((value) => value + 1);
 
@@ -54,6 +56,7 @@ export function NewsPage() {
             </p>
           </section>
           <div className="content-layout">
+            <TopicPanel tags={options.tags} selected={filters.tag} onSelect={selectTag} />
             <section className="feed" id="stories" aria-labelledby="feed-title" tabIndex={-1}>
               <div className="section-heading">
                 <h2 id="feed-title">The latest</h2>
@@ -64,10 +67,9 @@ export function NewsPage() {
               <NewsFilters
                 filters={filters}
                 sources={options.sources}
-                tags={options.tags}
                 onChange={setFilters}
               />
-              {!loading && !error && (
+              {!loading && !error && (!filters.sort || filters.sort === 'newest') && (
                 <NewStoriesNotice filters={filters} firstArticle={articles[0]} onRefresh={refresh} />
               )}
               {optionsError && (
@@ -84,7 +86,7 @@ export function NewsPage() {
                       key={article.id}
                       article={article}
                       tags={options.tags}
-                      onTag={(tag) => setFilters({ ...filters, tag })}
+                      onTag={selectTag}
                     />
                   ))}
                 </div>
@@ -102,7 +104,7 @@ export function NewsPage() {
                 {!loading && !error && articles.length === 0 && (
                   <div className="feed-status">
                     <span className="empty-mark" aria-hidden="true">—</span>
-                    <p>No stories match these filters.</p>
+                    <p>{filters.sort === 'popular' ? 'No link openings in the last 7 days match these filters.' : 'No stories match these filters.'}</p>
                     <p className="muted">
                       Try another topic or source. New stories appear after the next collection.
                     </p>

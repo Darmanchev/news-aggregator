@@ -1,4 +1,5 @@
-import { Article, type ArticleInput } from './articles.model.js';
+import type { PipelineStage, Types } from 'mongoose';
+import { Article, ArticleOpen, type ArticleInput } from './articles.model.js';
 import { sources, isSourceImageUrl } from '../sources/sources.config.js';
 import type { ArticleQuery } from './articles.validation.js';
 import { expandTags, tagFilterIds } from '../tagging/tagging.service.js';
@@ -17,18 +18,69 @@ export async function saveArticle(article: ArticleInput, now: Date): Promise<voi
   }, { upsert: true, runValidators: true });
 }
 
+const day = 86_400_000;
+
+export async function recordArticleOpen(id: string): Promise<boolean> {
+  const article = await Article.exists({ _id: id, sourceId: { $in: sources.map(({ id }) => id) } });
+  if (!article) return false;
+  await ArticleOpen.create({ articleId: article._id, openedAt: new Date() });
+  return true;
+}
+
 export async function listArticles(query: ArticleQuery) {
+  const now = new Date();
+  const asOf = query.cursor?.asOf ?? now;
+  const search = query.q?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const filter = {
     sourceId: query.source ?? { $in: sources.map(({ id }) => id) },
+    publishedAt: { $gte: new Date(Math.max(asOf.getTime() - query.days * day, now.getTime() - 365 * day)) },
     ...(query.tag ? { tags: { $in: tagFilterIds(query.tag) } } : {}),
-    // shortcut: literal search scans titles, add a search index when measured latency requires it.
-    ...(query.q ? { title: { $regex: query.q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } } : {}),
-    ...(query.cursor ? { $or: [
-      { publishedAt: { $lt: query.cursor.date } },
-      { publishedAt: query.cursor.date, _id: { $lt: query.cursor.id } },
-    ] } : {}),
+    ...(search ? { title: { $regex: search, $options: 'i' } } : {}),
   };
-  const rows = await Article.find(filter).sort({ publishedAt: -1, _id: -1 }).limit(query.limit + 1).maxTimeMS(5000).lean();
+  const direction = query.sort === 'oldest' ? 1 : -1;
+  const comparison = direction === 1 ? '$gt' : '$lt';
+  const cursor = query.cursor;
+  const dateOrder = { publishedAt: direction, _id: direction } as const;
+  const dateAfter = cursor ? [
+    { publishedAt: { [comparison]: cursor.date } },
+    { publishedAt: cursor.date, _id: { [comparison]: cursor.id } },
+  ] : [];
+
+  let rows: (ArticleInput & { _id: Types.ObjectId; rank?: number })[];
+  if (query.sort === 'popular' || query.sort === 'relevant') {
+    const pipeline: PipelineStage[] = [{ $match: filter }];
+    if (query.sort === 'popular') {
+      pipeline.push(
+        { $lookup: {
+          from: ArticleOpen.collection.name,
+          localField: '_id', foreignField: 'articleId', as: 'opens',
+          pipeline: [
+            { $match: { openedAt: { $gte: new Date(asOf.getTime() - 7 * day), $lte: asOf } } },
+            { $count: 'count' },
+          ],
+        } },
+        { $set: { rank: { $ifNull: [{ $first: '$opens.count' }, 0] } } },
+        { $match: { rank: { $gt: 0 } } },
+      );
+    } else {
+      pipeline.push({ $set: { rank: { $switch: {
+        branches: [
+          { case: { $regexMatch: { input: '$title', regex: `^${search}$`, options: 'i' } }, then: 3 },
+          { case: { $regexMatch: { input: '$title', regex: `^${search}`, options: 'i' } }, then: 2 },
+        ],
+        default: 1,
+      } } } });
+    }
+    if (cursor) pipeline.push({ $match: { $or: [
+      { rank: { $lt: cursor.rank } },
+      { rank: cursor.rank, $or: dateAfter },
+    ] } });
+    pipeline.push({ $sort: { rank: -1, ...dateOrder } }, { $limit: query.limit + 1 });
+    rows = await Article.aggregate(pipeline).option({ maxTimeMS: 5000 });
+  } else {
+    rows = await Article.find({ ...filter, ...(cursor ? { $or: dateAfter } : {}) })
+      .sort(dateOrder).limit(query.limit + 1).maxTimeMS(5000).lean();
+  }
   const page = rows.slice(0, query.limit);
   const last = page.at(-1);
   return {
@@ -44,7 +96,7 @@ export async function listArticles(query: ArticleQuery) {
       };
     }),
     nextCursor: rows.length > query.limit && last
-      ? Buffer.from(JSON.stringify({ date: last.publishedAt.toISOString(), id: last._id.toString() })).toString('base64url')
+      ? Buffer.from(JSON.stringify({ date: last.publishedAt.toISOString(), id: last._id.toString(), rank: last.rank, asOf: asOf.toISOString() })).toString('base64url')
       : null,
   };
 }

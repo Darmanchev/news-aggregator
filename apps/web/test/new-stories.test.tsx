@@ -52,9 +52,9 @@ it('uses active search/topic/source filters when checking for new stories', asyn
   render(<NewsPage />);
   await act(async () => {});
   const user = userEvent.setup();
-  await user.type(screen.getByRole('searchbox'), 'София');
+  await user.type(screen.getByRole('searchbox', { name: 'Search headlines' }), 'София');
   await user.click(screen.getByRole('button', { name: 'Search' }));
-  await user.selectOptions(screen.getByLabelText('Topic'), 'sofia');
+  await user.click(await screen.findByRole('button', { name: 'София' }));
   await user.selectOptions(screen.getByLabelText('Source'), 'mediapool');
   newer = true;
   await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });

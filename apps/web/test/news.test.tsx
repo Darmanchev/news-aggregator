@@ -71,8 +71,8 @@ describe('news feed', () => {
     const oldResponse = new Promise<Response>((resolve) => { finishOld = resolve; });
     mockApi((url) => url.searchParams.has('tag') ? json({ items: [article('2', 'Filtered story')], nextCursor: null }) : oldResponse);
     render(<NewsPage />);
-    await screen.findByRole('option', { name: 'София' });
-    await userEvent.selectOptions(screen.getByLabelText('Topic'), 'sofia');
+    await screen.findByRole('button', { name: 'София' });
+    await userEvent.click(await screen.findByRole('button', { name: 'София' }));
     expect(await screen.findByRole('link', { name: 'Filtered story' })).toBeInTheDocument();
     await act(async () => { finishOld(json({ items: [article('1', 'Old story')], nextCursor: null })); });
     expect(screen.queryByRole('link', { name: 'Old story' })).not.toBeInTheDocument();
@@ -88,7 +88,7 @@ describe('news feed', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Load more stories' }));
     expect(await screen.findByRole('link', { name: 'Second story' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'First story' })).toBeInTheDocument();
-    await userEvent.selectOptions(screen.getByLabelText('Topic'), 'sofia');
+    await userEvent.click(await screen.findByRole('button', { name: 'София' }));
     await waitFor(() => expect(screen.queryByRole('link', { name: 'First story' })).not.toBeInTheDocument());
     expect(await screen.findByRole('link', { name: 'Filtered story' })).toBeInTheDocument();
   });
@@ -131,7 +131,7 @@ describe('news feed', () => {
     render(<NewsPage />);
     await userEvent.click(await screen.findByRole('button', { name: 'Load more stories' }));
     pageSignal = fetchMock.mock.calls.find(([url]) => String(url).includes('cursor='))?.[1]?.signal ?? undefined;
-    if (action === 'filter') await userEvent.selectOptions(screen.getByLabelText('Topic'), 'sofia');
+    if (action === 'filter') await userEvent.click(await screen.findByRole('button', { name: 'София' }));
     else await userEvent.click(screen.getByRole('button', { name: /Refresh news/ }));
     expect(await screen.findByRole('link', { name: 'Page 2' })).toBeInTheDocument();
     expect(pageSignal?.aborted).toBe(true);

@@ -1,10 +1,11 @@
 import mongoose from 'mongoose';
-import { Article } from '../modules/articles/articles.model.js';
+import { Article, ArticleOpen } from '../modules/articles/articles.model.js';
 import { SourceStatus } from '../modules/sources/sources.model.js';
 
 export async function connectDatabase(uri: string) {
   await mongoose.connect(uri, { serverSelectionTimeoutMS: 5000 });
   await Article.init();
+  await ArticleOpen.init();
   await SourceStatus.init();
 }
 

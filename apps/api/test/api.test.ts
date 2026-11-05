@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import mongoose from 'mongoose';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
-import { Article } from '../src/modules/articles/articles.model.js';
+import { Article, ArticleOpen } from '../src/modules/articles/articles.model.js';
 import { SourceStatus } from '../src/modules/sources/sources.model.js';
 import { connectTestDatabase } from './helpers/test-database.js';
 
@@ -11,10 +11,12 @@ describe('news API with MongoDB', () => {
   beforeAll(async () => {
     await connectTestDatabase();
     await Article.init();
+    await ArticleOpen.init();
     await SourceStatus.init();
   });
   beforeEach(async () => {
     await Article.deleteMany({ sourceId: 'mediapool' });
+    await ArticleOpen.deleteMany({});
     await SourceStatus.deleteMany({ _id: { $in: ['mediapool', 'disabled'] } });
     await Article.insertMany([
       { sourceId: 'mediapool', externalId: 'a', title: 'First', url: 'https://example.com/a', tags: ['sofia'], publishedAt: new Date('2026-10-20T10:00:00Z'), firstSeenAt: new Date() },
@@ -32,6 +34,35 @@ describe('news API with MongoDB', () => {
     const third = await request(app).get('/api/articles').query({ limit: 1, cursor: second.body.nextCursor }).expect(200);
     expect(third.body.items[0].title).toBe('Third');
     expect(third.body.nextCursor).toBeNull();
+  });
+
+  it('limits publication dates and paginates oldest first', async () => {
+    await Article.updateOne({ externalId: 'a' }, { $set: { publishedAt: new Date(Date.now() - 366 * 86_400_000) } });
+    const first = await request(app).get('/api/articles?sort=oldest&limit=1').expect(200);
+    expect(first.body.items[0].title).toBe('Third');
+    const second = await request(app).get('/api/articles').query({ sort: 'oldest', cursor: first.body.nextCursor }).expect(200);
+    expect(second.body.items.map(({ title }: { title: string }) => title)).toEqual(['Second']);
+    await request(app).get('/api/articles?period=week&sort=invalid').expect(400);
+  });
+
+  it('orders literal headline matches by relevance before date', async () => {
+    await Article.updateOne({ externalId: 'a' }, { $set: { title: 'Новини от София' } });
+    await Article.updateOne({ externalId: 'c' }, { $set: { title: 'София' } });
+    const response = await request(app).get('/api/articles').query({ q: 'софия', sort: 'relevant' }).expect(200);
+    expect(response.body.items.map(({ title }: { title: string }) => title)).toEqual(['София', 'Новини от София']);
+  });
+
+  it('ranks articles by recent original-link openings and paginates the ranking', async () => {
+    const a = await Article.findOne({ externalId: 'a' }).orFail();
+    const b = await Article.findOne({ externalId: 'b' }).orFail();
+    const c = await Article.findOne({ externalId: 'c' }).orFail();
+    await ArticleOpen.create({ articleId: c._id, openedAt: new Date(Date.now() - 7.5 * 86_400_000) });
+    for (const id of [a.id, b.id, a.id]) await request(app).post(`/api/articles/${id}/open`).expect(204);
+    await request(app).post('/api/articles/invalid/open').expect(400);
+    const first = await request(app).get('/api/articles?sort=popular&limit=1').expect(200);
+    expect(first.body.items[0].title).toBe('First');
+    const second = await request(app).get('/api/articles').query({ sort: 'popular', cursor: first.body.nextCursor }).expect(200);
+    expect(second.body.items.map(({ title }: { title: string }) => title)).toEqual(['Second']);
   });
 
   it('filters by an approved tag and source', async () => {

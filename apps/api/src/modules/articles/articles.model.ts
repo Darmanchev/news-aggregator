@@ -37,3 +37,11 @@ articleSchema.index({ sourceId: 1, externalId: 1 }, { unique: true });
 articleSchema.index({ publishedAt: -1, _id: -1 });
 
 export const Article = model('Article', articleSchema);
+
+const articleOpenSchema = new Schema({
+  articleId: { type: Schema.Types.ObjectId, required: true },
+  openedAt: { type: Date, required: true, expires: 8 * 86_400 },
+}, { versionKey: false, bufferCommands: false });
+
+articleOpenSchema.index({ articleId: 1, openedAt: 1 });
+export const ArticleOpen = model('ArticleOpen', articleOpenSchema);
