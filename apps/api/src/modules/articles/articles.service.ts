@@ -47,30 +47,20 @@ export async function listArticles(query: ArticleQuery) {
   ] : [];
 
   let rows: (ArticleInput & { _id: Types.ObjectId; rank?: number })[];
-  if (query.sort === 'popular' || query.sort === 'relevant') {
-    const pipeline: PipelineStage[] = [{ $match: filter }];
-    if (query.sort === 'popular') {
-      pipeline.push(
-        { $lookup: {
-          from: ArticleOpen.collection.name,
-          localField: '_id', foreignField: 'articleId', as: 'opens',
-          pipeline: [
-            { $match: { openedAt: { $gte: new Date(asOf.getTime() - 7 * day), $lte: asOf } } },
-            { $count: 'count' },
-          ],
-        } },
-        { $set: { rank: { $ifNull: [{ $first: '$opens.count' }, 0] } } },
-        { $match: { rank: { $gt: 0 } } },
-      );
-    } else {
-      pipeline.push({ $set: { rank: { $switch: {
-        branches: [
-          { case: { $regexMatch: { input: '$title', regex: `^${search}$`, options: 'i' } }, then: 3 },
-          { case: { $regexMatch: { input: '$title', regex: `^${search}`, options: 'i' } }, then: 2 },
+  if (query.sort === 'popular') {
+    const pipeline: PipelineStage[] = [
+      { $match: filter },
+      { $lookup: {
+        from: ArticleOpen.collection.name,
+        localField: '_id', foreignField: 'articleId', as: 'opens',
+        pipeline: [
+          { $match: { openedAt: { $gte: new Date(asOf.getTime() - 7 * day), $lte: asOf } } },
+          { $count: 'count' },
         ],
-        default: 1,
-      } } } });
-    }
+      } },
+      { $set: { rank: { $ifNull: [{ $first: '$opens.count' }, 0] } } },
+      { $match: { rank: { $gt: 0 } } },
+    ];
     if (cursor) pipeline.push({ $match: { $or: [
       { rank: { $lt: cursor.rank } },
       { rank: cursor.rank, $or: dateAfter },

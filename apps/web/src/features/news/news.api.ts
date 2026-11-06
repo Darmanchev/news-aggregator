@@ -16,7 +16,7 @@ export interface Filters {
   tag: string;
   q: string;
   period?: 'day' | 'week' | 'month' | 'year';
-  sort?: 'newest' | 'oldest' | 'relevant' | 'popular';
+  sort?: 'newest' | 'oldest' | 'popular';
 }
 
 async function getJson<T>(path: string, signal: AbortSignal): Promise<T> {

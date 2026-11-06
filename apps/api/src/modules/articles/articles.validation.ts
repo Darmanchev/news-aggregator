@@ -4,7 +4,7 @@ import { isTagId } from '../tagging/tagging.service.js';
 import { HttpError } from '../../middleware/error-handler.js';
 
 const periods = { day: 1, week: 7, month: 30, year: 365 } as const;
-const sorts = ['newest', 'oldest', 'relevant', 'popular'] as const;
+const sorts = ['newest', 'oldest', 'popular'] as const;
 
 export interface ArticleQuery {
   source?: string;
@@ -33,7 +33,7 @@ export function parseArticleQuery(query: Record<string, unknown>): ArticleQuery 
 
   if (!Object.hasOwn(periods, period) || !sorts.some((value) => value === sort)) invalid();
   const search = q?.normalize('NFC').trim();
-  const order = sort === 'relevant' && !search ? 'newest' : sort as ArticleQuery['sort'];
+  const order = sort as ArticleQuery['sort'];
   const result: ArticleQuery = { source, tag, q: search, limit: Number(limit), days: periods[period as keyof typeof periods], sort: order };
   if (cursor !== undefined) {
     if (cursor.length > 256 || !/^[\w-]+$/.test(cursor)) invalid();
@@ -46,7 +46,7 @@ export function parseArticleQuery(query: Record<string, unknown>): ArticleQuery 
       if (!Number.isFinite(parsedDate.getTime()) || parsedDate.toISOString() !== date) invalid();
       const rank = 'rank' in value ? value.rank : undefined;
       if (rank !== undefined && (typeof rank !== 'number' || !Number.isSafeInteger(rank) || rank < 1)) invalid();
-      if ((order === 'popular' || order === 'relevant') !== (rank !== undefined)) invalid();
+      if ((order === 'popular') !== (rank !== undefined)) invalid();
       const asOf = 'asOf' in value && typeof value.asOf === 'string' ? new Date(value.asOf) : undefined;
       if ('asOf' in value && (!asOf || !Number.isFinite(asOf.getTime()) || asOf.getTime() > Date.now())) invalid();
       if (order === 'popular' && !asOf) invalid();

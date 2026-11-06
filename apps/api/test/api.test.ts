@@ -45,13 +45,6 @@ describe('news API with MongoDB', () => {
     await request(app).get('/api/articles?period=week&sort=invalid').expect(400);
   });
 
-  it('orders literal headline matches by relevance before date', async () => {
-    await Article.updateOne({ externalId: 'a' }, { $set: { title: 'Новини от София' } });
-    await Article.updateOne({ externalId: 'c' }, { $set: { title: 'София' } });
-    const response = await request(app).get('/api/articles').query({ q: 'софия', sort: 'relevant' }).expect(200);
-    expect(response.body.items.map(({ title }: { title: string }) => title)).toEqual(['София', 'Новини от София']);
-  });
-
   it('ranks articles by recent original-link openings and paginates the ranking', async () => {
     const a = await Article.findOne({ externalId: 'a' }).orFail();
     const b = await Article.findOne({ externalId: 'b' }).orFail();
@@ -108,7 +101,7 @@ describe('news API with MongoDB', () => {
   it.each([
     'limit=0', 'limit=51', 'limit=1.5', 'limit=abc', 'limit=1&limit=2',
     'source=unknown', 'tag=unknown', 'source[$ne]=x', 'cursor=garbage',
-    'q=a&q=b', 'q[$ne]=x', `q=${'a'.repeat(101)}`, 'q=%00',
+    'sort=relevant&q=София', 'q=a&q=b', 'q[$ne]=x', `q=${'a'.repeat(101)}`, 'q=%00',
     `cursor=${Buffer.from(JSON.stringify({ date: 'invalid', id: 'not-id' })).toString('base64url')}`,
   ])('rejects malformed query %s', async (query) => {
     const response = await request(app).get(`/api/articles?${query}`).expect(400);

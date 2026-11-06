@@ -61,7 +61,6 @@ h1 em { color: #bc482e; font-weight: 400; }
 .empty-mark { font: 40px Georgia, serif; color: #bc482e; }
 .muted { color: #637066; font-size: 12px; }
 .notice { margin: 20px 0; padding: 20px; border: 1px solid #d8b5a9; background: #f6ede6; font-size: 13px; line-height: 1.8; }
-.new-stories { position: sticky; top: 12px; z-index: 1; }
 .retry-button { margin-left: 10px; padding: 6px 10px; background: transparent; color: #8b3422; border: 1px solid #b7644f; border-radius: 3px; }
 .pagination { padding: 28px 0; }
 .load-more { display: flex; align-items: center; justify-content: space-between; width: 100%; border: 1px solid #c9cfc5; color: #303a32; background: transparent; padding: 15px 18px; font-size: 12px; }

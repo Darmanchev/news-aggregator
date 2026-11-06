@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { NewsCard } from './NewsCard';
 import { NewsFilters } from './NewsFilters';
 import { TopicPanel } from './TopicPanel';
-import { NewStoriesNotice } from './NewStoriesNotice';
 import { fetchOptions, type Filters, type Option } from './news.api';
 import { useNewsFeed } from './useNewsFeed';
 
@@ -69,9 +68,6 @@ export function NewsPage() {
                 sources={options.sources}
                 onChange={setFilters}
               />
-              {!loading && !error && (!filters.sort || filters.sort === 'newest') && (
-                <NewStoriesNotice filters={filters} firstArticle={articles[0]} onRefresh={refresh} />
-              )}
               {optionsError && (
                 <div role="alert" className="notice">
                   Could not load the filters.{' '}

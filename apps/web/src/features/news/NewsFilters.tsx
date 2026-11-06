@@ -13,8 +13,7 @@ export function NewsFilters({ filters, sources, onChange }: Props) {
   return <div className="filters">
     <form className="headline-search" role="search" onSubmit={(event) => {
       event.preventDefault();
-      const q = search.trim();
-      onChange({ ...filters, q, sort: !q && filters.sort === 'relevant' ? 'newest' : filters.sort });
+      onChange({ ...filters, q: search.trim() });
     }}>
       <label htmlFor="headline-search">Search headlines<input id="headline-search" type="search" value={search} maxLength={100} placeholder="Search Bulgarian headlines" onChange={(event) => setSearch(event.target.value)} /></label>
       <button className="search-button" type="submit">Search</button>
@@ -31,7 +30,6 @@ export function NewsFilters({ filters, sources, onChange }: Props) {
     <label htmlFor="sort">Sort by<select id="sort" value={filters.sort ?? 'newest'} onChange={(event) => onChange({ ...filters, sort: event.target.value as Filters['sort'] })}>
       <option value="newest">Newest first</option>
       <option value="oldest">Oldest first</option>
-      <option value="relevant" disabled={!filters.q}>Relevance</option>
       <option value="popular">Most opened in 7 days</option>
     </select></label>
     {(filters.source || filters.tag || filters.q || filters.period && filters.period !== 'year' || filters.sort && filters.sort !== 'newest') &&

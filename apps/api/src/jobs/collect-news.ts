@@ -16,7 +16,7 @@ try {
   try {
     const config = readTaggingConfig();
     if (config) classifier = createTagClassifier(config);
-  } catch { console.error('AI tagging disabled: check LM_STUDIO_MODEL/LM_STUDIO_BASE_URL or QWEN_API_KEY/QWEN_BASE_URL.'); }
+  } catch { console.error('AI tagging disabled: check LM_STUDIO_MODEL/LM_STUDIO_BASE_URL.'); }
   let alertConfig: ReturnType<typeof readAlertConfig> = null;
   try { alertConfig = readAlertConfig(); } catch {
     console.error('Collection email alerts disabled: check RESEND_API_KEY, ALERT_EMAIL_FROM and ALERT_EMAIL_TO.');

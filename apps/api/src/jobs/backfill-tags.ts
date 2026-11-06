@@ -12,7 +12,7 @@ try {
   const limit = args[0] ? Number(args[0].slice('--limit='.length)) : 100;
   if (!Number.isInteger(limit) || limit < 1 || limit > 1000) throw new Error('Use a limit from 1 to 1000.');
   const config = readTaggingConfig();
-  if (!config) throw new Error('Configure LM_STUDIO_MODEL or QWEN_API_KEY before running a tags backfill.');
+  if (!config) throw new Error('Configure LM_STUDIO_MODEL before running a tags backfill.');
   await connectDatabase(readConfig().mongoUri);
   const report = await backfillTags(createTagClassifier(config), limit, controller.signal);
   console.log(JSON.stringify({ tags: report }));

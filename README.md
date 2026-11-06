@@ -39,10 +39,10 @@ MongoDB 7 is used locally because MongoDB 8 refused startup on the current Docke
 - Duplicate prevention, request timeout, a 2 MB feed limit, and validation of feed entries and API queries.
 - Separate web and collection processes; JSON collection logs and database readiness endpoint.
 - Per-source collection timestamps available through the status API for operational checks.
-- A new-stories notice checked every minute; loaded pages stay in place until the reader chooses to refresh.
+- Manual feed refresh with the active filters.
 - Optional email alerts after 15 minutes of continued source failure, with one message per outage.
 
-No subscription or API key is required for the enabled news feeds. AI tagging is optional: use local LM Studio or a Qwen API key; there are no reader accounts, advertising, or stored full articles. Missing RSS photos are looked up in the original publisher page’s preview metadata. Publisher reuse conditions still apply; see below.
+No subscription or API key is required for the enabled news feeds. AI tagging is optional: use local LM Studio; there are no reader accounts, advertising, or stored full articles. Missing RSS photos are looked up in the original publisher page’s preview metadata. Publisher reuse conditions still apply; see below.
 
 ## Project layout
 
@@ -53,7 +53,7 @@ apps/
       articles/       Article model, queries, validation and HTTP routes
       sources/        Trusted feeds, source status, and public source list
       ingestion/      RSS network boundary, normalization, import orchestration
-      tagging/        Mini-IPTC catalog, keyword fallback, optional Qwen and classification cache
+      tagging/        Mini-IPTC catalog, keyword fallback, optional LM Studio and classification cache
     infrastructure/   MongoDB connection lifecycle
     middleware/       Consistent HTTP errors
     jobs/             One-shot collection and five-minute schedule
@@ -133,39 +133,22 @@ LM_STUDIO_MODEL=qwen3-4b-instruct-2507
 LM_STUDIO_BASE_URL=http://127.0.0.1:1234/v1
 ```
 
-Copy the exact model ID from `http://127.0.0.1:1234/v1/models`. Restart the collector after changing settings. Local configuration takes precedence over Qwen; cloud credentials are never sent to LM Studio. Only loopback HTTP `/v1` endpoints are accepted. The collector must run on the same host as LM Studio; `127.0.0.1` inside a container refers to that container.
+Copy the exact model ID from `http://127.0.0.1:1234/v1/models`. Restart the collector after changing settings. Only loopback HTTP `/v1` endpoints are accepted. The collector must run on the same host as LM Studio; `127.0.0.1` inside a container refers to that container.
 
-Local requests use a compact catalog of topic IDs, English names and parent links, a JSON schema restricting output to allowed IDs, temperature 0 and a 60-second timeout. Start with an 8192-token context and verify the full request fits your model configuration; increasing context also increases memory use. Backend validation, cached classifications and keyword fallback remain active. Stop the worker before testing a bounded backfill with `npm run tags:backfill -- --limit=5`. Without a configured cloud key, no paid provider requests occur.
+Local requests use a compact catalog of topic IDs, English names and parent links, a JSON schema restricting output to allowed IDs, temperature 0 and a 60-second timeout. Start with an 8192-token context and verify the full request fits your model configuration; increasing context also increases memory use. Backend validation, cached classifications and keyword fallback remain active. Stop the worker before testing a bounded backfill with `npm run tags:backfill -- --limit=5`.
 
 The site reads stored tags, so visitors do not call the model. If LM Studio is unavailable, collection falls back to keyword rules for the rest of that run. Previously classified articles in that run may receive keyword tags again; their successful classification cache is retained and reused when the model returns. Local model quality must be checked on representative Bulgarian headlines.
 
-### Optional Qwen tagging
+The model receives the headline and RSS excerpt, up to 500 characters each (200 for the Actualno excerpt). It returns up to five topic IDs. Valid results replace keyword topics and keep geographic tags. MongoDB caches the selected IDs, including an empty result, by input hash and classifier version.
 
-Set these only in the collector's environment or root `.env`:
-
-```dotenv
-QWEN_API_KEY=your-alibaba-model-studio-key
-# Optional; the default is the Singapore shared endpoint:
-QWEN_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
-```
-
-Use an Alibaba Model Studio API key for the same region as the endpoint. Workspace-specific HTTPS `*.maas.aliyuncs.com/compatible-mode/v1` endpoints are also accepted. No key is sent to the browser. Restart the collector after changing configuration. Invalid configuration disables AI with a generic warning; the normal importer remains usable.
-
-The collector calls `qwen-flash` in non-thinking JSON mode, requesting at most five specific subject IDs from the catalog. It sends at most 500 headline characters and 500 excerpt characters (200 for Actualno), plus the catalog and instructions. It does not fetch full article text for AI. The excerpt is available even without a photo. Returned IDs, uniqueness, count and completion status are validated before use. Accepted topics replace keyword subjects, while geographic tags remain; ancestors are added for broad filtering. A valid empty selection is saved too.
-
-MongoDB stores the successful classification's selected IDs, input hash and classifier version. Unchanged inputs reuse the result, including empty results. The version incorporates the model name, endpoint and catalog prompt; modifying these invalidates the cache. Provider-side changes behind the model alias are not detected automatically. Requests time out after ten seconds, use bounded response reading, and are cancelled on worker shutdown. On the first tagging failure, the remaining articles in that collection use keyword rules; the next collection may try again. AI failure does not count as an RSS publisher outage. Failed calls or a call whose subsequent database save fails may be charged again on retry. Run only one collector.
-
-Qwen API usage is billed separately by the provider. The full 137-topic prompt is included on each request unless the provider applies caching, so do not assume the earlier illustrative 1,000-token estimate fits this catalog. Check actual token usage and provider billing limits before enabling collection. No live Qwen calls or paid backfills were run as part of implementation; Bulgarian classification quality has not yet been measured.
-
-For older records outside the RSS window, an **explicit bounded** backfill is available (paid when using Qwen):
+For older records outside the RSS window, an **explicit bounded** backfill is available:
 
 ```sh
 npm run tags:backfill -- --limit=100
 ```
 
-The default limit is 100 attempted classifications per invocation; allowed limits are 1–1000. It uses stored headlines and available preview excerpts, skips matching successful classifications on reruns, and stops after the first failure. Dates, URLs and previews are not modified. Optimistic updates avoid overwriting an article changed while a request was in flight. Run with the collector stopped to avoid duplicate charges and input differences: a stored preview excerpt may differ from the RSS excerpt, and a later collection can classify that different input again. No model-quality evaluation dataset or automatic full-archive migration is included.
+The default limit is 100 attempted classifications per invocation; allowed limits are 1–1000. It uses stored headlines and available preview excerpts, skips matching successful classifications on reruns, and stops after the first failure. Dates, URLs and previews are not modified. Optimistic updates avoid overwriting an article changed while a request was in flight. Run with the collector stopped to avoid duplicate requests and input differences: a stored preview excerpt may differ from the RSS excerpt, and a later collection can classify that different input again. No model-quality evaluation dataset or automatic full-archive migration is included.
 
-Provider references: [Qwen JSON output](https://www.alibabacloud.com/help/en/model-studio/qwen-structured-output), [thinking mode](https://www.alibabacloud.com/help/en/model-studio/deep-thinking), [regional endpoints](https://help.aliyun.com/en/model-studio/base-url).
 
 Article identity is `(sourceId, externalId)`, using the feed GUID or URL. Only `utm_*` tracking parameters and URL fragments are removed. First-seen time and the initial publication/fallback date are preserved on subsequent imports; titles, URLs, and tags can update. Articles from different publishers about the same event remain separate.
 
@@ -183,13 +166,13 @@ Invalid publication dates, recognized dates without a timezone, and dates later 
 
 Articles accept optional `source`, `tag`, `q`, `period`, `sort`, `cursor`, and `limit` query parameters. The default page size is 20 and maximum is 50. Pass `nextCursor` back unchanged for the next page. Invalid or unknown parameters return 400. API errors use `{ error: { code, message } }`. Article responses include `id`, `title`, `url`, `publishedAt`, `tags`, `sourceId`, `sourceName`, `imageLabel`, and `preview`. `imageLabel` is a publisher name panel string, or `null` when the normal photo/fallback should be shown. A preview is either `null` or `{ imageUrl, author, excerpt }`. Older stored articles remain readable without previews.
 
-`period` accepts `day`, `week`, `month` (30 days) and `year` (365 days, the default and maximum). `sort` accepts `newest` (default), `oldest`, `relevant` and `popular`. Relevance ranks an exact headline match first, then a prefix match, then other literal matches. Without a search it falls back to newest. Popular ranks articles with openings in the last seven days by their opening count. Date and article ID break ties.
+`period` accepts `day`, `week`, `month` (30 days) and `year` (365 days, the default and maximum). `sort` accepts `newest` (default), `oldest` and `popular`. Popular ranks articles with openings in the last seven days by their opening count. Date and article ID break ties.
 
 `POST /api/articles/:id/open` records a link opening and returns 204. The website sends it when a reader opens a publisher headline or original link. Each event stores the article ID and timestamp and expires after eight days. The ranking starts with clicks collected after deployment.
 
 `q` searches titles by literal, case-insensitive substring, including Cyrillic. It is limited to 100 characters; control characters and repeated query parameters are rejected. Blank search acts like no search. Punctuation is treated literally rather than as a regular expression. Source, topic, search, and cursor can be combined. The page submits search on Enter or the Search button, and resets pagination when filters change. Search scans stored titles with the existing query timeout; add a search index if measured latency warrants it.
 
-While a feed is open, the browser checks for newer matching headlines every minute using the active source/topic/search. A sticky “New stories available” button appears when the newest `(publishedAt, id)` exceeds the displayed first story; it does not replace articles or reset loaded pages automatically. Clicking the button loads the latest first page. Older backfilled stories do not trigger this notice. Polling failures leave the readable feed unchanged.
+Click **Refresh news** to reload the first page with the active filters. The collector continues to fetch RSS in the background.
 
 Collection timestamps are ISO strings, or `null` before the first attempt/success. Each source's attempt is saved before fetching; success is saved only after its feed has been fetched and its valid entries saved, including an empty feed. Failed checks preserve the previous success timestamp. Timestamps identify the start of that collection run, rather than article publication times. Status includes enabled sources only; it does not expose feed URLs or internal errors.
 
@@ -206,7 +189,7 @@ npm run build
 
 Integration tests use **`bulgarian_news_test`** and **`bulgarian_news_alerts_test`**, separate from the application's database. Tests use local feed fixtures and real MongoDB; they never contact publishers. `TEST_MONGODB_URI` can select a deployment, but must explicitly name one of these two dedicated databases. A shared test helper rejects other database names before connecting and pins the database name in the connection options. Test setup removes records; these databases must contain only disposable test data.
 
-UI tests check original links, search, new-story notices, retries, pagination resets, and stale request handling. Backend tests cover Cyrillic tagging, normalization, unsafe URLs, feed size and HTTP failures, unique upserts, preserved dates, partial source failures, API validation, and equal-date pagination. Schedule tests cover timing, shutdown, and avoiding overlap. Email tests use a stub transport and fixture records only; no real email is sent.
+UI tests check original links, search, retries, pagination resets, and stale request handling. Backend tests cover Cyrillic tagging, normalization, unsafe URLs, feed size and HTTP failures, unique upserts, preserved dates, partial source failures, API validation, and equal-date pagination. Schedule tests cover timing, shutdown, and avoiding overlap. Email tests use a stub transport and fixture records only; no real email is sent.
 
 ## Collection email alerts
 
