@@ -14,11 +14,20 @@ export function articleExcerpt(item: Item, sourceId: string): string {
   return plainText(item.contentSnippet ?? item.content).slice(0, limit);
 }
 
+function embeddedImageUrl(content: string = ''): string | undefined {
+  // shortcut: scan the first RSS image tag, use an HTML parser if full-document extraction becomes necessary.
+  const tag = content.slice(0, 20_000).match(/<img\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/i)?.[0];
+  if (!tag) return undefined;
+  for (const attribute of tag.matchAll(/\s+([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g)) {
+    if (attribute[1]?.toLowerCase() === 'src') return attribute[2] ?? attribute[3] ?? attribute[4];
+  }
+  return undefined;
+}
+
 export function normalizePreview(item: Item, sourceId: string): ArticleInput['preview'] {
   const source = sources.find(({ id }) => id === sourceId);
   if (!source?.imageHosts || (item.enclosure && !['image/jpg', 'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'].includes(item.enclosure.type ?? ''))) return null;
-  // shortcut: embedded photos require a simple quoted <img src>, use an HTML parser if publisher markup changes.
-  const embedded = item.content?.slice(0, 20_000).match(/<img\s+src\s*=\s*(["'])([^"'<>]+)\1\s*\/?>/i)?.[2];
+  const embedded = embeddedImageUrl(item.content);
   const imageUrl = item.enclosure?.url ?? (embedded ? decodeHTML(embedded) : undefined);
   const author = plainText(item.creator);
   const excerpt = articleExcerpt(item, sourceId);

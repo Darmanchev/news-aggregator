@@ -26,7 +26,10 @@ export const sources: Source[] = [
     previewPolicy: { maxExcerptLength: 200, requireAttribution: true, feedOnly: true },
   },
   { id: 'dariknews', name: 'DarikNews.bg · Нет Инфо', feedUrl: 'https://dariknews.bg/rss.php' },
-  { id: 'kaldata', name: 'Kaldata.com · Калдейта Ком', feedUrl: 'https://www.kaldata.com/feed' },
+  {
+    id: 'kaldata', name: 'Kaldata.com · Калдейта Ком', feedUrl: 'https://www.kaldata.com/feed',
+    imageHosts: ['www.kaldata.com', 'kaldata.com'], previewPolicy: { feedOnly: true },
+  },
 ];
 
 export function isSourceImageUrl(value: string, sourceId: string): boolean {

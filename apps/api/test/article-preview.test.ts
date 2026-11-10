@@ -45,12 +45,29 @@ describe('licensed RSS previews', () => {
     });
   });
 
+  it('keeps Kaldata RSS cover photos and rejects images from other hosts', () => {
+    const entry = { ...item, enclosure: undefined, content: '<img width="300" height="168" src="https://www.kaldata.com/wp-content/uploads/2026/11/cover.webp" class="cover" />' };
+    expect(normalizeArticle(entry, 'kaldata', now)?.preview?.imageUrl)
+      .toBe('https://www.kaldata.com/wp-content/uploads/2026/11/cover.webp');
+    expect(normalizeArticle({ ...entry, content: entry.content.replace('www.kaldata.com', 'evil.example') }, 'kaldata', now)).not.toHaveProperty('preview');
+  });
+
   it('does not mistake other attributes for an embedded photo URL or allow an unapproved host', () => {
     for (const content of [
       '<img data-src="https://img.dnevnik.bg/a.jpg" />',
+      '<img alt=\'Example src="https://img.dnevnik.bg/a.jpg"\' />',
       '<img src="https://evil.example/a.jpg" />',
       '<img src="javascript:alert(1)" />',
     ]) expect(normalizeArticle({ ...item, enclosure: undefined, content, contentSnippet: 'Анонс.' }, 'dnevnik', now)).not.toHaveProperty('preview');
+  });
+
+  it.each([
+    '<img width="300" height="168" src="https://img.dnevnik.bg/a.jpg" class="cover" />',
+    "<IMG alt='Photo > preview' SRC = 'https://img.dnevnik.bg/a.jpg' loading='lazy'>",
+    '<img data-src="https://evil.example/a.jpg" src="https://img.dnevnik.bg/a.jpg" />',
+  ])('reads embedded photos with additional attributes: %s', (content) => {
+    expect(normalizeArticle({ ...item, enclosure: undefined, content, contentSnippet: 'Анонс.' }, 'dnevnik', now)?.preview?.imageUrl)
+      .toBe('https://img.dnevnik.bg/a.jpg');
   });
 
   it.each([
